@@ -23,6 +23,7 @@ header {
     background: rgba(255,255,255,0.1);
     padding: 20px;
     border-radius: 10px;
+    backdrop-filter: blur(10px);
 }
 
 .stats {
@@ -51,11 +52,19 @@ header {
     border-radius: 10px;
     padding: 20px;
     border: 2px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(5px);
 }
 
 .level h2 {
     margin-bottom: 10px;
     color: #ffd700;
+    font-size: 24px;
+}
+
+.level-description {
+    color: rgba(255,255,255,0.8);
+    font-size: 14px;
+    margin-bottom: 15px;
 }
 
 .level.unlocked {
@@ -65,29 +74,53 @@ header {
 
 .level.locked {
     opacity: 0.5;
+    filter: grayscale(0.5);
 }
 
 .mission {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px;
-    margin: 5px 0;
+    padding: 12px;
+    margin: 8px 0;
     background: rgba(0,0,0,0.2);
-    border-radius: 5px;
+    border-radius: 8px;
+    transition: transform 0.2s;
+}
+
+.mission:hover {
+    transform: translateX(5px);
 }
 
 .mission.completed {
     background: rgba(76, 175, 80, 0.3);
+    border-left: 4px solid #4caf50;
 }
 
 .mission.available {
     background: rgba(255, 152, 0, 0.3);
-    border: 2px solid #ff9800;
+    border-left: 4px solid #ff9800;
+    cursor: pointer;
+}
+
+.mission.available:hover {
+    background: rgba(255, 152, 0, 0.5);
 }
 
 .mission.locked {
     opacity: 0.5;
+    border-left: 4px solid #666;
+}
+
+.mission-name {
+    font-weight: 500;
+}
+
+.mission-points {
+    background: rgba(255,255,255,0.2);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
 }
 
 .start-btn {
@@ -98,11 +131,13 @@ header {
     border-radius: 20px;
     cursor: pointer;
     font-weight: bold;
+    transition: all 0.2s;
 }
 
 .start-btn:hover {
     background: #f57c00;
     transform: scale(1.05);
+    box-shadow: 0 0 15px #ff9800;
 }
 
 .level-connector {
@@ -112,30 +147,41 @@ header {
     margin: 0 auto;
 }
 
-.xp {
+.xp-display {
     font-size: 24px;
     color: #ffd700;
     text-align: center;
     margin: 20px;
+    font-weight: bold;
 }
 
-.progress {
-    color: #aaa;
-    font-size: 14px;
-    margin-bottom: 10px;
+.progress-bar {
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    margin: 10px 0;
+    overflow: hidden;
 }
 
-.unlocks {
+.progress-fill {
+    height: 100%;
+    background: #4caf50;
+    transition: width 0.3s;
+}
+
+.next-unlock {
     margin-top: 10px;
     padding: 10px;
     background: #4caf50;
     color: white;
     border-radius: 5px;
     text-align: center;
+    font-size: 14px;
 }
 
 footer {
     text-align: center;
     margin-top: 40px;
     color: rgba(255,255,255,0.5);
+    font-size: 14px;
 }
