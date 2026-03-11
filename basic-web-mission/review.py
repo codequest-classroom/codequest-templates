@@ -1,77 +1,70 @@
-import os
-import json
-import requests
-import base64
-import subprocess
+import os, json, requests, base64, subprocess
 from datetime import datetime
 
 def check_mission():
-    """Main grading and unlocking engine"""
-    print("🤖 CodeQuest AI Reviewer Starting...")
+    """Grades the work, updates XP, and triggers all 'nextInLevel' missions."""
+    print("🚀 CodeQuest Reviewer: checking submissions/index.html...")
     
-    # 1. Load Local Files
-    try:
-        with open('mission.json', 'r') as f: mission = json.load(f)
-        with open('rubric.json', 'r') as f: rubric = json.load(f)
-        with open('identity.json', 'r') as f: identity = json.load(f)
-    except Exception as e:
-        print(f"❌ Initialization Error: {e}")
-        return False
+    # 1. Load context
+    with open('mission.json', 'r') as f: mission = json.load(f)
+    with open('rubric.json', 'r') as f: rubric = json.load(f)
+    with open('identity.json', 'r') as f: identity = json.load(f)
 
-    # 2. Run Rubric Checks
+    # 2. Run the tests from the rubric
     results = []
     points_earned = 0
     for check in rubric.get('checks', []):
-        print(f"🔎 Checking: {check['name']}...")
-        # Runs the shell command (e.g., 'grep' or 'test -f')
-        process = subprocess.run(check['test'], shell=True, capture_output=True, text=True)
+        # We run the test command (e.g., grep)
+        process = subprocess.run(check['test'], shell=True, capture_output=True)
         passed = (process.returncode == 0)
         
         results.append({
-            "req": check['name'],
+            "name": check['name'],
             "pass": passed,
-            "feedback": "✅ Done!" if passed else f"❌ {check['feedback']}"
+            "feedback": "✅" if passed else f"❌ {check['feedback']}"
         })
         if passed: points_earned += 1
 
-    # 3. Determine if Passed
-    passing_score = rubric.get('passingScore', 1)
-    is_passed = points_earned >= passing_score
-
-    # 4. Generate feedback.md (What the student sees in GitHub)
-    generate_feedback_file(mission, identity, results, is_passed, points_earned)
-
-    # 5. If Passed: Update Master Repo & Trigger Next Mission
-    if is_passed:
-        # Prevent double-grading if they push again
-        already_done = any(m['id'] == mission['id'] for m in identity.get('completedMissions', []))
-        if not already_done:
-            update_student_data(identity, mission)
-            
-            # Look at mission.json to see what's next
-            next_mission_id = mission.get('nextInLevel', [None])[0]
-            if next_mission_id:
-                trigger_next_repo_creation(identity['username'], next_mission_id)
+    # 3. Determine if the student passed based on rubric passingScore
+    is_passed = points_earned >= rubric.get('passingScore', 1)
     
+    if is_passed:
+        # Check if mission was already completed to prevent XP farming
+        already_completed = any(m['id'] == mission['id'] for m in identity.get('completedMissions', []))
+        
+        if not already_completed:
+            # Update local identity
+            identity['xp'] = identity.get('xp', 0) + mission.get('points', 0)
+            if 'completedMissions' not in identity: identity['completedMissions'] = []
+            
+            identity['completedMissions'].append({
+                "id": mission['id'],
+                "at": datetime.now().isoformat()
+            })
+            
+            # Sync to the Master Repo (This updates the skill tree website)
+            sync_to_master(identity)
+            
+            # 4. Trigger ALL next missions (Points-based branching)
+            next_missions = mission.get('nextInLevel', [])
+            for next_id in next_missions:
+                trigger_next_gen(identity['username'], next_id)
+                print(f"🔗 Triggering next mission: {next_id}")
+
+    # 5. Write feedback for the student to read in GitHub
+    write_feedback_file(is_passed, points_earned, results, identity)
     return is_passed
 
-def update_student_data(identity, mission):
-    """Updates the Central Master Repo so the website reflects the win"""
+def sync_to_master(identity):
+    """Updates the master student record so script.js sees the new points."""
     token = os.environ.get('GH_TOKEN')
-    username = identity['username']
-    org = "codequest-classroom"
-    
-    # Update local identity first
-    identity['xp'] += mission.get('points', 0)
-    identity['completedMissions'].append({
-        "id": mission['id'],
-        "points": mission.get('points', 0),
-        "completedAt": datetime.now().isoformat()
-    })
+    user = identity['username']
+    url = f"https://api.github.com/repos/codequest-classroom/codequest-master/contents/students/{user}.json"
+    headers = {"Authorization": f"token {token}"}
 
-    # Prepare JSON for the Website (matches your script.js structure)
+    # Format the JSON exactly how script.js expects it
     master_json = {
-        "student": {"name": identity['name'], "username": username},
+        "student": {"name": identity['name'], "username": user},
         "progress": {
             "xp": identity['xp'],
             "completedMissions": identity['completedMissions'],
@@ -79,46 +72,32 @@ def update_student_data(identity, mission):
         }
     }
 
-    # API call to update codequest-master/students/username.json
-    url = f"https://api.github.com/repos/{org}/codequest-master/contents/students/{username}.json"
-    headers = {"Authorization": f"token {token}"}
-    
-    # Get SHA to overwrite
+    # Get SHA for the update
     res = requests.get(url, headers=headers)
     sha = res.json().get('sha') if res.status_code == 200 else None
-
-    payload = {
-        "message": f"🏆 {username} completed {mission['id']}",
+    
+    requests.put(url, headers=headers, json={
+        "message": f"🏆 {user} passed {identity.get('currentMission', 'mission')}",
         "content": base64.b64encode(json.dumps(master_json, indent=2).encode()).decode(),
         "sha": sha
-    }
-    
-    requests.put(url, headers=headers, json=payload)
-    print(f"📡 Master Record Updated for {username}")
+    })
 
-def trigger_next_repo_creation(username, next_mission_id):
-    """Triggers the GitHub Action in the Master repo to build the next repo"""
+def trigger_next_gen(user, mission_id):
+    """Calls the master repo workflow to build the next challenge."""
     token = os.environ.get('GH_TOKEN')
     url = "https://api.github.com/repos/codequest-classroom/codequest-master/actions/workflows/invite-student.yml/dispatches"
-    
-    payload = {
-        "ref": "main",
-        "inputs": {
-            "username": username,
-            "mission_id": next_mission_id
-        }
-    }
-    requests.post(url, headers={"Authorization": f"token {token}"}, json=payload)
-    print(f"📦 Next mission triggered: {next_mission_id}")
+    requests.post(url, headers={"Authorization": f"token {token}"}, 
+                  json={"ref": "main", "inputs": {"username": user, "mission_id": mission_id}})
 
-def generate_feedback_file(mission, identity, results, is_passed, score):
+def write_feedback_file(passed, score, results, identity):
     with open('feedback.md', 'w') as f:
-        status = "✅ MISSION PASSED!" if is_passed else "❌ MISSION INCOMPLETE"
+        status = "🎉 MISSION PASSED!" if passed else "⚠️ MISSION INCOMPLETE"
         f.write(f"# {status}\n\n")
-        f.write(f"### Score: {score}/{len(results)}\n\n")
+        f.write(f"### Points: {score} | Total XP: {identity['xp']}\n\n")
+        f.write("### Reviewer Results:\n")
         for r in results:
-            f.write(f"- {r['feedback']}\n")
-        f.write(f"\n---\n**Check your progress here:** https://{identity['username']}.github.io")
+            f.write(f"- {r['feedback']} **{r['name']}**\n")
+        f.write(f"\n[View your Progress Tree](https://{identity['username']}.github.io)")
 
 if __name__ == "__main__":
     check_mission()
