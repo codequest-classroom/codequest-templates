@@ -1,6 +1,7 @@
+// Detects the username based on the GitHub Pages URL (e.g., "mishael.github.io")
 const username = window.location.hostname.split('.')[0];
 
-// Mission database with level info
+// Your Mission Map
 const missionTree = {
     "web-level-1": {
         name: "HTML Basics",
@@ -12,7 +13,6 @@ const missionTree = {
             { id: "html-1-3", name: "Links & Images", repo: `${username}-html-1-3`, points: 5, number: 3 }
         ],
         minToComplete: 2,
-        pointsPerMission: 5,
         unlocks: ["web-level-2"]
     },
     "web-level-2": {
@@ -25,130 +25,107 @@ const missionTree = {
             { id: "css-2-3", name: "Colors", repo: `${username}-css-2-3`, points: 8, number: 6 }
         ],
         minToComplete: 2,
-        pointsPerMission: 8,
         unlocks: []
     }
 };
 
 async function loadStudentProgress() {
     try {
+        // Fetch progress from the master repo (updated by review.py)
         const response = await fetch(
             `https://raw.githubusercontent.com/codequest-classroom/codequest-master/main/students/${username}.json`
         );
         
-        if (!response.ok) {
-            throw new Error('Student data not found');
-        }
+        if (!response.ok) throw new Error('Student data not found');
         
-        const student = await response.json();
-        
-        let totalXP = student.progress.completedMissions.reduce((sum, m) => sum + m.points, 0);
-        
-        document.getElementById('student-name').textContent = `${student.student.name}'s Coding Quest 🚀`;
-        document.getElementById('xp').textContent = totalXP;
-        document.getElementById('badges').textContent = student.progress.badges.length;
-        
+        const data = await response.json();
+        const student = data.student;
+        const progress = data.progress;
+
+        // Update UI Header
+        document.getElementById('student-name').textContent = `${student.name}'s Coding Quest 🚀`;
+        document.getElementById('xp').textContent = progress.xp || 0;
+        document.getElementById('badges').textContent = progress.badges ? progress.badges.length : 0;
+
+        // Logic: Determine which levels are unlocked
         let unlockedLevels = ["web-level-1"];
-        if (totalXP >= 10) unlockedLevels.push("web-level-2");
         
-        let html = '';
-        
-        // Add floating emojis for fun
-        html += `<div class="emoji-cloud">🌟</div>`;
-        html += `<div class="emoji-cloud">⭐</div>`;
-        html += `<div class="emoji-cloud">🚀</div>`;
-        
-        // Build each level
+        // Loop through levels to see if previous ones were completed
         for (let [levelId, level] of Object.entries(missionTree)) {
-            const isUnlocked = unlockedLevels.includes(levelId);
-            
-            const completedInLevel = student.progress.completedMissions.filter(
+            const completedInThisLevel = progress.completedMissions.filter(
                 m => level.missions.some(lm => lm.id === m.id)
             ).length;
-            
+
+            if (completedInThisLevel >= level.minToComplete && level.unlocks.length > 0) {
+                unlockedLevels.push(...level.unlocks);
+            }
+        }
+
+        let html = '';
+
+        // Build the Skill Tree HTML
+        for (let [levelId, level] of Object.entries(missionTree)) {
+            const isUnlocked = unlockedLevels.includes(levelId);
+            const completedInLevel = progress.completedMissions.filter(
+                m => level.missions.some(lm => lm.id === m.id)
+            ).length;
             const levelComplete = completedInLevel >= level.minToComplete;
-            
-            html += `<div class="level">`;
+
+            html += `<div class="level ${isUnlocked ? '' : 'locked-level'}">`;
             html += `<h2>${level.emoji} ${level.name} ${level.emoji}</h2>`;
             html += `<div class="level-description">${level.description}</div>`;
-            
-            // Missions row with circles
             html += `<div class="missions-row">`;
-            
+
             level.missions.forEach((mission, index) => {
-                const isCompleted = student.progress.completedMissions.some(m => m.id === mission.id);
+                const isCompleted = progress.completedMissions.some(m => m.id === mission.id);
                 
                 let status = 'locked';
                 if (isCompleted) {
                     status = 'completed';
-                } else if (isUnlocked && !levelComplete) {
+                } else if (isUnlocked) {
                     status = 'available';
                 }
-                
-                html += `<div class="mission-circle ${status}" data-level="${levelId.slice(-1)}" data-repo="${mission.repo}">`;
-                html += `<div class="circle">`;
-                html += `<span class="circle-number">${mission.number}</span>`;
-                html += `<span class="circle-points">${mission.points} pts</span>`;
-                html += `</div>`;
-                html += `<span class="mission-name">${mission.name}</span>`;
-                
-                if (status === 'completed') {
-                    html += `<div style="font-size: 24px; margin-top: 5px;">✅</div>`;
-                } else if (status === 'available') {
-                    html += `<div style="font-size: 24px; margin-top: 5px;">✨</div>`;
-                } else {
-                    html += `<div style="font-size: 24px; margin-top: 5px;">🔒</div>`;
-                }
-                
-                html += `</div>`;
-                
-                // Add connector arrow between missions (except last)
+
+                html += `
+                    <div class="mission-circle ${status}" data-repo="${mission.repo}">
+                        <div class="circle">
+                            <span class="circle-number">${mission.number}</span>
+                            <span class="circle-points">${mission.points} pts</span>
+                        </div>
+                        <span class="mission-name">${mission.name}</span>
+                        <div class="status-icon">${status === 'completed' ? '✅' : (status === 'available' ? '✨' : '🔒')}</div>
+                    </div>
+                `;
+
                 if (index < level.missions.length - 1) {
                     html += `<div class="connector">➡️</div>`;
                 }
             });
-            
+
             html += `</div>`; // Close missions-row
-            
-            // Progress indicator
-            html += `<div class="level-progress">📊 ${completedInLevel}/${level.minToComplete} missions done`;
-            if (levelComplete) {
-                html += ` ✅ Level Complete!`;
-            }
-            html += `</div>`;
-            
-            // Show what this level unlocks
-            if (levelComplete && level.unlocks.length > 0) {
-                html += `<div class="unlock-message">🎉 NEW PATH UNLOCKED! 🎉</div>`;
-            }
-            
+            html += `<div class="level-progress">📊 ${completedInLevel}/${level.minToComplete} missions for next level</div>`;
             html += `</div>`; // Close level
-            
-            // Add big arrow between levels
-            html += `<div class="connector" style="font-size: 50px;">⬇️</div>`;
+            html += `<div class="connector-large">⬇️</div>`;
         }
-        
+
         document.getElementById('skill-tree').innerHTML = html;
-        
-        // Add click handlers to available mission circles
-        document.querySelectorAll('.mission-circle.available').forEach(circle => {
+
+        // Handle Clicks: Only allow clicking on Available or Completed missions
+        document.querySelectorAll('.mission-circle.available, .mission-circle.completed').forEach(circle => {
             circle.addEventListener('click', function() {
                 const repoName = this.dataset.repo;
                 window.open(`https://github.com/codequest-classroom/${repoName}`, '_blank');
             });
         });
-        
+
     } catch (error) {
-        console.error('Error:', error);
-        document.getElementById('skill-tree').innerHTML = `
-            <div style="text-align: center; padding: 50px; background: rgba(255,255,255,0.2); border-radius: 50px;">
-                <h2>🌟 Welcome to your Coding Quest! 🌟</h2>
-                <p style="font-size: 24px; margin: 20px;">Complete your first mission to see your skill tree!</p>
-                <div style="font-size: 60px;">🚀✨⭐</div>
-            </div>
-        `;
+        console.error('Error loading progress:', error);
+        document.getElementById('skill-tree').innerHTML = `<h2>Complete your first mission to unlock your tree! 🚀</h2>`;
     }
 }
 
+// Initial load
 loadStudentProgress();
+
+// Refresh every 30 seconds to catch passing grades
 setInterval(loadStudentProgress, 30000);
