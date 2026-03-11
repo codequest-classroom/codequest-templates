@@ -3,102 +3,150 @@ import json
 import requests
 from datetime import datetime
 import base64
+import subprocess
 
 def check_mission():
     """Main grading function"""
     
     print("🤖 CodeQuest AI Reviewer Starting...")
+    print("=" * 50)
     
     # Load all necessary files
-    with open('mission.json', 'r') as f:
-        mission = json.load(f)
+    try:
+        with open('mission.json', 'r') as f:
+            mission = json.load(f)
+        print(f"✅ Loaded mission: {mission.get('title', 'Unknown')}")
+    except Exception as e:
+        print(f"❌ Failed to load mission.json: {e}")
+        return False
     
-    with open('rubric.json', 'r') as f:
-        rubric = json.load(f)
+    try:
+        with open('rubric.json', 'r') as f:
+            rubric = json.load(f)
+        print(f"✅ Loaded rubric with {len(rubric.get('checks', []))} checks")
+    except Exception as e:
+        print(f"❌ Failed to load rubric.json: {e}")
+        return False
     
-    with open('identity.json', 'r') as f:
-        identity = json.load(f)
+    try:
+        with open('identity.json', 'r') as f:
+            identity = json.load(f)
+        print(f"✅ Loaded identity for: {identity.get('name', 'Unknown')}")
+    except Exception as e:
+        print(f"❌ Failed to load identity.json: {e}")
+        return False
     
     # Check if already completed
-    if mission['id'] in [m['id'] for m in identity.get('completedMissions', [])]:
-        print("✅ Mission already completed!")
+    completed_ids = [m['id'] for m in identity.get('completedMissions', [])]
+    if mission['id'] in completed_ids:
+        print("✅ Mission already completed! Skipping...")
         return True
     
-    # Check if submissions exist
-    html_path = 'submissions/index.html'
-    css_path = 'submissions/style.css'
+    print("\n🔍 Running checks...")
+    print("-" * 50)
     
-    html_exists = os.path.exists(html_path)
-    css_exists = os.path.exists(css_path)
-    
+    # Run checks from rubric
     results = []
     all_pass = True
+    total_points = 0
     
-    # Basic file checks
-    if not html_exists:
-        results.append({
-            "req": "HTML file exists",
-            "pass": False,
-            "feedback": "Missing submissions/index.html file"
-        })
-        all_pass = False
-    else:
-        with open(html_path, 'r') as f:
-            html_content = f.read()
+    for check in rubric.get('checks', []):
+        check_name = check.get('name', 'Unknown check')
+        test_command = check.get('test', '')
+        feedback = check.get('feedback', 'No feedback provided')
         
-        # Check for basic HTML structure
-        checks = [
-            ("DOCTYPE declaration", "<!DOCTYPE html>" in html_content),
-            ("HTML tags", "<html" in html_content and "</html>" in html_content),
-            ("Head section", "<head" in html_content and "</head>" in html_content),
-            ("Body section", "<body" in html_content and "</body>" in html_content),
-        ]
+        print(f"  Checking: {check_name}...")
         
-        for check_name, passed in checks:
+        # Run the test command
+        passed = False
+        if test_command:
+            try:
+                # For simple file existence checks
+                if test_command.startswith('test -f'):
+                    file_path = test_command.replace('test -f', '').strip()
+                    passed = os.path.exists(file_path)
+                # For grep commands
+                elif 'grep' in test_command:
+                    result = subprocess.run(
+                        test_command,
+                        shell=True,
+                        capture_output=True,
+                        text=True
+                    )
+                    passed = result.returncode == 0
+                # For other commands
+                else:
+                    result = subprocess.run(
+                        test_command,
+                        shell=True,
+                        capture_output=True,
+                        text=True
+                    )
+                    passed = result.returncode == 0
+            except Exception as e:
+                print(f"    ⚠️ Test error: {e}")
+                passed = False
+        
+        if passed:
+            print(f"    ✅ PASSED")
             results.append({
                 "req": check_name,
-                "pass": passed,
-                "feedback": "Good!" if passed else f"Missing {check_name}"
+                "pass": True,
+                "feedback": "Good job! ✓"
             })
-            if not passed:
-                all_pass = False
+            total_points += 1
+        else:
+            print(f"    ❌ FAILED")
+            results.append({
+                "req": check_name,
+                "pass": False,
+                "feedback": feedback
+            })
+            all_pass = False
     
-    if not css_exists:
-        results.append({
-            "req": "CSS file exists",
-            "pass": False,
-            "feedback": "Missing submissions/style.css file"
-        })
-        all_pass = False
+    print("-" * 50)
+    print(f"\n📊 Results: {sum(1 for r in results if r['pass'])}/{len(results)} passed")
+    
+    # Determine if passed based on passing score
+    passing_score = rubric.get('passingScore', len(results))
+    points_earned = sum(1 for r in results if r['pass'])
+    passed = points_earned >= passing_score
     
     # Generate feedback.md
-    generate_feedback(mission, rubric, identity, results, all_pass)
+    generate_feedback(mission, identity, results, passed, points_earned)
     
-    # If passed, update identity and master record
-    if all_pass:
-        update_student_progress(identity, mission)
+    # If passed, update identity and trigger next steps
+    if passed:
+        print(f"\n🎉 MISSION PASSED! Awarding {mission.get('points', 0)} XP")
+        update_student_progress(identity, mission, results)
+    else:
+        print(f"\n❌ Mission not passed yet. Keep trying!")
     
-    return all_pass
+    return passed
 
-def generate_feedback(mission, rubric, identity, results, passed):
+def generate_feedback(mission, identity, results, passed, points_earned):
     """Create feedback.md file"""
     
     username = identity.get('username', 'student')
+    student_name = identity.get('name', 'Coder')
+    total_checks = len(results)
     
     with open('feedback.md', 'w') as f:
         f.write(f"# 🤖 CodeQuest AI Review\n\n")
         
         if passed:
             f.write(f"## ✅ MISSION PASSED! 🎉\n\n")
-            f.write(f"Great job, {identity.get('name', 'Coder')}!\n\n")
-            f.write(f"### +{mission['points']} XP EARNED\n")
+            f.write(f"Great job, {student_name}!\n\n")
+            f.write(f"### ✨ +{mission.get('points', 0)} XP EARNED\n")
             if mission.get('badge'):
                 f.write(f"### 🏆 Badge Unlocked: {mission['badge']}\n")
+            f.write(f"\nYou passed {points_earned}/{total_checks} checks!\n")
         else:
             f.write(f"## ❌ NOT QUITE YET\n\n")
-            f.write(f"Keep trying, {identity.get('name', 'Coder')}! Here's what needs work:\n\n")
+            f.write(f"Keep trying, {student_name}! Here's what needs work:\n\n")
+            f.write(f"### 📊 Score: {points_earned}/{total_checks}\n\n")
         
-        f.write(f"### Results:\n")
+        f.write(f"\n### 📋 Detailed Results:\n")
         for r in results:
             icon = "✅" if r['pass'] else "❌"
             f.write(f"{icon} **{r['req']}**: {r['feedback']}\n")
@@ -110,29 +158,48 @@ def generate_feedback(mission, rubric, identity, results, passed):
         f.write(f"\n---\n")
         f.write(f"## 🌐 View Your Progress:\n")
         f.write(f"👉 **https://{username}.github.io**\n")
-        f.write(f"\n*Click the 🔓 button on your site to start your next mission!*\n")
+        f.write(f"\n*Click the glowing circles on your site to start your next mission!*\n")
     
     print("✅ feedback.md generated")
 
-def update_student_progress(identity, mission):
+def update_student_progress(identity, mission, results):
     """Update identity.json and sync with master repo"""
     
-    # Update local identity
+    # Get current timestamp
+    now = datetime.now().isoformat()
+    
+    # Initialize fields if they don't exist
     if 'completedMissions' not in identity:
         identity['completedMissions'] = []
+    if 'xp' not in identity:
+        identity['xp'] = 0
+    if 'badges' not in identity:
+        identity['badges'] = []
     
+    # Add completed mission
     identity['completedMissions'].append({
         'id': mission['id'],
         'points': mission['points'],
-        'completedAt': datetime.now().isoformat()
+        'completedAt': now,
+        'results': results
     })
     
-    identity['xp'] = identity.get('xp', 0) + mission['points']
+    # Add XP
+    identity['xp'] += mission['points']
     
-    if mission.get('badge') and mission['badge'] not in identity.get('badges', []):
-        if 'badges' not in identity:
-            identity['badges'] = []
+    # Add badge if exists and not already earned
+    if mission.get('badge') and mission['badge'] not in identity['badges']:
         identity['badges'].append(mission['badge'])
+        print(f"🏆 Badge earned: {mission['badge']}")
+    
+    # Calculate next mission
+    next_mission = determine_next_mission(identity, mission)
+    if next_mission:
+        identity['currentMission'] = next_mission
+        print(f"🎯 Next mission: {next_mission}")
+        
+        # Trigger creation of next mission repo
+        create_next_mission_repo(identity['username'], next_mission)
     
     # Save local identity
     with open('identity.json', 'w') as f:
@@ -140,9 +207,39 @@ def update_student_progress(identity, mission):
     
     print("✅ Local identity updated")
     
-    # Here you would also update the master repo via GitHub API
-    # This requires GH_TOKEN environment variable
+    # Update master repo
     update_master_record(identity)
+    
+    print(f"📊 Total XP now: {identity['xp']}")
+    print(f"🏅 Badges: {', '.join(identity['badges'])}")
+
+def determine_next_mission(identity, completed_mission):
+    """Determine which mission should be next"""
+    
+    # This would normally check the path/level structure
+    # For demo, just increment the mission number
+    mission_id = completed_mission['id']
+    
+    # Simple progression for demo
+    progression = {
+        'html-1-1': 'html-1-2',
+        'html-1-2': 'html-1-3',
+        'html-1-3': 'css-2-1',
+        'css-2-1': 'css-2-2',
+        'css-2-2': 'css-2-3',
+        'css-2-3': None
+    }
+    
+    return progression.get(mission_id)
+
+def create_next_mission_repo(username, next_mission):
+    """Call the create-student-repo script to make next mission"""
+    
+    print(f"📦 Creating next mission repo: {username}-{next_mission}")
+    
+    # This would call your create-student-repo.py script
+    # For now, just print
+    print(f"🔧 Would create: https://github.com/codequest-classroom/{username}-{next_mission}")
 
 def update_master_record(identity):
     """Update the student's record in master repo"""
@@ -157,9 +254,13 @@ def update_master_record(identity):
         print("⚠️ No username in identity")
         return
     
-    # GitHub API call to update master repo
-    # This is simplified - you'd need the full implementation
-    print(f"📡 Would update master record for {username}")
+    # This would use GitHub API to update master repo
+    print(f"📡 Syncing with master repo for {username}")
+    
+    # For demo, just print what would happen
+    print(f"   Would update: students/{username}.json")
+    print(f"   New XP: {identity['xp']}")
+    print(f"   New badges: {identity['badges']}")
 
 if __name__ == "__main__":
     passed = check_mission()
