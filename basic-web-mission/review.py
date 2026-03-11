@@ -1,267 +1,124 @@
 import os
 import json
 import requests
-from datetime import datetime
 import base64
 import subprocess
+from datetime import datetime
 
 def check_mission():
-    """Main grading function"""
-    
+    """Main grading and unlocking engine"""
     print("🤖 CodeQuest AI Reviewer Starting...")
-    print("=" * 50)
     
-    # Load all necessary files
+    # 1. Load Local Files
     try:
-        with open('mission.json', 'r') as f:
-            mission = json.load(f)
-        print(f"✅ Loaded mission: {mission.get('title', 'Unknown')}")
+        with open('mission.json', 'r') as f: mission = json.load(f)
+        with open('rubric.json', 'r') as f: rubric = json.load(f)
+        with open('identity.json', 'r') as f: identity = json.load(f)
     except Exception as e:
-        print(f"❌ Failed to load mission.json: {e}")
+        print(f"❌ Initialization Error: {e}")
         return False
-    
-    try:
-        with open('rubric.json', 'r') as f:
-            rubric = json.load(f)
-        print(f"✅ Loaded rubric with {len(rubric.get('checks', []))} checks")
-    except Exception as e:
-        print(f"❌ Failed to load rubric.json: {e}")
-        return False
-    
-    try:
-        with open('identity.json', 'r') as f:
-            identity = json.load(f)
-        print(f"✅ Loaded identity for: {identity.get('name', 'Unknown')}")
-    except Exception as e:
-        print(f"❌ Failed to load identity.json: {e}")
-        return False
-    
-    # Check if already completed
-    completed_ids = [m['id'] for m in identity.get('completedMissions', [])]
-    if mission['id'] in completed_ids:
-        print("✅ Mission already completed! Skipping...")
-        return True
-    
-    print("\n🔍 Running checks...")
-    print("-" * 50)
-    
-    # Run checks from rubric
+
+    # 2. Run Rubric Checks
     results = []
-    all_pass = True
-    total_points = 0
-    
+    points_earned = 0
     for check in rubric.get('checks', []):
-        check_name = check.get('name', 'Unknown check')
-        test_command = check.get('test', '')
-        feedback = check.get('feedback', 'No feedback provided')
+        print(f"🔎 Checking: {check['name']}...")
+        # Runs the shell command (e.g., 'grep' or 'test -f')
+        process = subprocess.run(check['test'], shell=True, capture_output=True, text=True)
+        passed = (process.returncode == 0)
         
-        print(f"  Checking: {check_name}...")
-        
-        # Run the test command
-        passed = False
-        if test_command:
-            try:
-                # For simple file existence checks
-                if test_command.startswith('test -f'):
-                    file_path = test_command.replace('test -f', '').strip()
-                    passed = os.path.exists(file_path)
-                # For grep commands
-                elif 'grep' in test_command:
-                    result = subprocess.run(
-                        test_command,
-                        shell=True,
-                        capture_output=True,
-                        text=True
-                    )
-                    passed = result.returncode == 0
-                # For other commands
-                else:
-                    result = subprocess.run(
-                        test_command,
-                        shell=True,
-                        capture_output=True,
-                        text=True
-                    )
-                    passed = result.returncode == 0
-            except Exception as e:
-                print(f"    ⚠️ Test error: {e}")
-                passed = False
-        
-        if passed:
-            print(f"    ✅ PASSED")
-            results.append({
-                "req": check_name,
-                "pass": True,
-                "feedback": "Good job! ✓"
-            })
-            total_points += 1
-        else:
-            print(f"    ❌ FAILED")
-            results.append({
-                "req": check_name,
-                "pass": False,
-                "feedback": feedback
-            })
-            all_pass = False
-    
-    print("-" * 50)
-    print(f"\n📊 Results: {sum(1 for r in results if r['pass'])}/{len(results)} passed")
-    
-    # Determine if passed based on passing score
-    passing_score = rubric.get('passingScore', len(results))
-    points_earned = sum(1 for r in results if r['pass'])
-    passed = points_earned >= passing_score
-    
-    # Generate feedback.md
-    generate_feedback(mission, identity, results, passed, points_earned)
-    
-    # If passed, update identity and trigger next steps
-    if passed:
-        print(f"\n🎉 MISSION PASSED! Awarding {mission.get('points', 0)} XP")
-        update_student_progress(identity, mission, results)
-    else:
-        print(f"\n❌ Mission not passed yet. Keep trying!")
-    
-    return passed
+        results.append({
+            "req": check['name'],
+            "pass": passed,
+            "feedback": "✅ Done!" if passed else f"❌ {check['feedback']}"
+        })
+        if passed: points_earned += 1
 
-def generate_feedback(mission, identity, results, passed, points_earned):
-    """Create feedback.md file"""
-    
-    username = identity.get('username', 'student')
-    student_name = identity.get('name', 'Coder')
-    total_checks = len(results)
-    
-    with open('feedback.md', 'w') as f:
-        f.write(f"# 🤖 CodeQuest AI Review\n\n")
-        
-        if passed:
-            f.write(f"## ✅ MISSION PASSED! 🎉\n\n")
-            f.write(f"Great job, {student_name}!\n\n")
-            f.write(f"### ✨ +{mission.get('points', 0)} XP EARNED\n")
-            if mission.get('badge'):
-                f.write(f"### 🏆 Badge Unlocked: {mission['badge']}\n")
-            f.write(f"\nYou passed {points_earned}/{total_checks} checks!\n")
-        else:
-            f.write(f"## ❌ NOT QUITE YET\n\n")
-            f.write(f"Keep trying, {student_name}! Here's what needs work:\n\n")
-            f.write(f"### 📊 Score: {points_earned}/{total_checks}\n\n")
-        
-        f.write(f"\n### 📋 Detailed Results:\n")
-        for r in results:
-            icon = "✅" if r['pass'] else "❌"
-            f.write(f"{icon} **{r['req']}**: {r['feedback']}\n")
-        
-        if not passed:
-            f.write(f"\n💡 Fix the ❌ items above, save your files, and push again!\n")
-        
-        # Always link to their personal site
-        f.write(f"\n---\n")
-        f.write(f"## 🌐 View Your Progress:\n")
-        f.write(f"👉 **https://{username}.github.io**\n")
-        f.write(f"\n*Click the glowing circles on your site to start your next mission!*\n")
-    
-    print("✅ feedback.md generated")
+    # 3. Determine if Passed
+    passing_score = rubric.get('passingScore', 1)
+    is_passed = points_earned >= passing_score
 
-def update_student_progress(identity, mission, results):
-    """Update identity.json and sync with master repo"""
+    # 4. Generate feedback.md (What the student sees in GitHub)
+    generate_feedback_file(mission, identity, results, is_passed, points_earned)
+
+    # 5. If Passed: Update Master Repo & Trigger Next Mission
+    if is_passed:
+        # Prevent double-grading if they push again
+        already_done = any(m['id'] == mission['id'] for m in identity.get('completedMissions', []))
+        if not already_done:
+            update_student_data(identity, mission)
+            
+            # Look at mission.json to see what's next
+            next_mission_id = mission.get('nextInLevel', [None])[0]
+            if next_mission_id:
+                trigger_next_repo_creation(identity['username'], next_mission_id)
     
-    # Get current timestamp
-    now = datetime.now().isoformat()
+    return is_passed
+
+def update_student_data(identity, mission):
+    """Updates the Central Master Repo so the website reflects the win"""
+    token = os.environ.get('GH_TOKEN')
+    username = identity['username']
+    org = "codequest-classroom"
     
-    # Initialize fields if they don't exist
-    if 'completedMissions' not in identity:
-        identity['completedMissions'] = []
-    if 'xp' not in identity:
-        identity['xp'] = 0
-    if 'badges' not in identity:
-        identity['badges'] = []
-    
-    # Add completed mission
+    # Update local identity first
+    identity['xp'] += mission.get('points', 0)
     identity['completedMissions'].append({
-        'id': mission['id'],
-        'points': mission['points'],
-        'completedAt': now,
-        'results': results
+        "id": mission['id'],
+        "points": mission.get('points', 0),
+        "completedAt": datetime.now().isoformat()
     })
-    
-    # Add XP
-    identity['xp'] += mission['points']
-    
-    # Add badge if exists and not already earned
-    if mission.get('badge') and mission['badge'] not in identity['badges']:
-        identity['badges'].append(mission['badge'])
-        print(f"🏆 Badge earned: {mission['badge']}")
-    
-    # Calculate next mission
-    next_mission = determine_next_mission(identity, mission)
-    if next_mission:
-        identity['currentMission'] = next_mission
-        print(f"🎯 Next mission: {next_mission}")
-        
-        # Trigger creation of next mission repo
-        create_next_mission_repo(identity['username'], next_mission)
-    
-    # Save local identity
-    with open('identity.json', 'w') as f:
-        json.dump(identity, f, indent=2)
-    
-    print("✅ Local identity updated")
-    
-    # Update master repo
-    update_master_record(identity)
-    
-    print(f"📊 Total XP now: {identity['xp']}")
-    print(f"🏅 Badges: {', '.join(identity['badges'])}")
 
-def determine_next_mission(identity, completed_mission):
-    """Determine which mission should be next"""
+    # Prepare JSON for the Website (matches your script.js structure)
+    master_json = {
+        "student": {"name": identity['name'], "username": username},
+        "progress": {
+            "xp": identity['xp'],
+            "completedMissions": identity['completedMissions'],
+            "badges": identity.get('badges', [])
+        }
+    }
+
+    # API call to update codequest-master/students/username.json
+    url = f"https://api.github.com/repos/{org}/codequest-master/contents/students/{username}.json"
+    headers = {"Authorization": f"token {token}"}
     
-    # This would normally check the path/level structure
-    # For demo, just increment the mission number
-    mission_id = completed_mission['id']
-    
-    # Simple progression for demo
-    progression = {
-        'html-1-1': 'html-1-2',
-        'html-1-2': 'html-1-3',
-        'html-1-3': 'css-2-1',
-        'css-2-1': 'css-2-2',
-        'css-2-2': 'css-2-3',
-        'css-2-3': None
+    # Get SHA to overwrite
+    res = requests.get(url, headers=headers)
+    sha = res.json().get('sha') if res.status_code == 200 else None
+
+    payload = {
+        "message": f"🏆 {username} completed {mission['id']}",
+        "content": base64.b64encode(json.dumps(master_json, indent=2).encode()).decode(),
+        "sha": sha
     }
     
-    return progression.get(mission_id)
+    requests.put(url, headers=headers, json=payload)
+    print(f"📡 Master Record Updated for {username}")
 
-def create_next_mission_repo(username, next_mission):
-    """Call the create-student-repo script to make next mission"""
-    
-    print(f"📦 Creating next mission repo: {username}-{next_mission}")
-    
-    # This would call your create-student-repo.py script
-    # For now, just print
-    print(f"🔧 Would create: https://github.com/codequest-classroom/{username}-{next_mission}")
-
-def update_master_record(identity):
-    """Update the student's record in master repo"""
-    
+def trigger_next_repo_creation(username, next_mission_id):
+    """Triggers the GitHub Action in the Master repo to build the next repo"""
     token = os.environ.get('GH_TOKEN')
-    if not token:
-        print("⚠️ No GH_TOKEN found - skipping master update")
-        return
+    url = "https://api.github.com/repos/codequest-classroom/codequest-master/actions/workflows/invite-student.yml/dispatches"
     
-    username = identity.get('username')
-    if not username:
-        print("⚠️ No username in identity")
-        return
-    
-    # This would use GitHub API to update master repo
-    print(f"📡 Syncing with master repo for {username}")
-    
-    # For demo, just print what would happen
-    print(f"   Would update: students/{username}.json")
-    print(f"   New XP: {identity['xp']}")
-    print(f"   New badges: {identity['badges']}")
+    payload = {
+        "ref": "main",
+        "inputs": {
+            "username": username,
+            "mission_id": next_mission_id
+        }
+    }
+    requests.post(url, headers={"Authorization": f"token {token}"}, json=payload)
+    print(f"📦 Next mission triggered: {next_mission_id}")
+
+def generate_feedback_file(mission, identity, results, is_passed, score):
+    with open('feedback.md', 'w') as f:
+        status = "✅ MISSION PASSED!" if is_passed else "❌ MISSION INCOMPLETE"
+        f.write(f"# {status}\n\n")
+        f.write(f"### Score: {score}/{len(results)}\n\n")
+        for r in results:
+            f.write(f"- {r['feedback']}\n")
+        f.write(f"\n---\n**Check your progress here:** https://{identity['username']}.github.io")
 
 if __name__ == "__main__":
-    passed = check_mission()
-    exit(0 if passed else 1)
+    check_mission()
