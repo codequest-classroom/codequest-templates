@@ -5,10 +5,10 @@ def check_mission():
     """Grades the work, updates XP, and triggers all 'nextInLevel' missions."""
     print("🚀 CodeQuest Reviewer: checking submissions/index.html...")
     
-    # 1. Load context
-    with open('mission.json', 'r') as f: mission = json.load(f)
-    with open('rubric.json', 'r') as f: rubric = json.load(f)
-    with open('identity.json', 'r') as f: identity = json.load(f)
+    # 1. Load context (utf-8-sig handles BOM characters if present)
+    with open('mission.json', 'r', encoding='utf-8-sig') as f: mission = json.load(f)
+    with open('rubric.json', 'r', encoding='utf-8-sig') as f: rubric = json.load(f)
+    with open('identity.json', 'r', encoding='utf-8-sig') as f: identity = json.load(f)
 
     # 2. Run the tests from the rubric
     results = []
