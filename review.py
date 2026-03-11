@@ -14,7 +14,6 @@ def check_mission():
     results = []
     points_earned = 0
     for check in rubric.get('checks', []):
-        # We run the test command (e.g., grep)
         process = subprocess.run(check['test'], shell=True, capture_output=True)
         passed = (process.returncode == 0)
         
@@ -48,7 +47,7 @@ def check_mission():
             # 4. Trigger ALL next missions (Points-based branching)
             next_missions = mission.get('nextInLevel', [])
             for next_id in next_missions:
-                trigger_next_gen(identity['username'], next_id)
+                trigger_next_gen(identity, next_id)  # FIX: pass full identity not just user
                 print(f"🔗 Triggering next mission: {next_id}")
 
     # 5. Write feedback for the student to read in GitHub
@@ -62,32 +61,61 @@ def sync_to_master(identity):
     url = f"https://api.github.com/repos/codequest-classroom/codequest-master/contents/students/{user}.json"
     headers = {"Authorization": f"token {token}"}
 
-    # Format the JSON exactly how script.js expects it
-    master_json = {
-        "student": {"name": identity['name'], "username": user},
-        "progress": {
-            "xp": identity['xp'],
-            "completedMissions": identity['completedMissions'],
-            "badges": identity.get('badges', [])
-        }
-    }
-
-    # Get SHA for the update
+    # FIX: GET existing master record first to preserve all fields (id, joined, status etc.)
     res = requests.get(url, headers=headers)
-    sha = res.json().get('sha') if res.status_code == 200 else None
-    
-    requests.put(url, headers=headers, json={
-        "message": f"🏆 {user} passed {identity.get('currentMission', 'mission')}",
-        "content": base64.b64encode(json.dumps(master_json, indent=2).encode()).decode(),
-        "sha": sha
-    })
+    sha = None
+    existing = {}
 
-def trigger_next_gen(user, mission_id):
+    if res.status_code == 200:
+        sha = res.json().get('sha')
+        try:
+            existing = json.loads(base64.b64decode(res.json()['content']))
+        except Exception as e:
+            print(f"⚠️ Could not decode existing master record: {e}")
+
+    # Preserve existing student fields, only update progress
+    existing.setdefault('student', {})
+    existing.setdefault('progress', {})
+    existing['student']['name'] = identity['name']
+    existing['student']['username'] = user
+    existing['progress']['xp'] = identity['xp']
+    existing['progress']['completedMissions'] = identity['completedMissions']
+    existing['progress']['badges'] = identity.get('badges', [])
+    existing['progress']['currentMission'] = identity.get('currentMission', '')
+
+    put_payload = {
+        "message": f"🏆 {user} passed {identity.get('currentMission', 'mission')}",
+        "content": base64.b64encode(json.dumps(existing, indent=2).encode()).decode(),
+    }
+    if sha:
+        put_payload["sha"] = sha
+
+    result = requests.put(url, headers=headers, json=put_payload)
+    if result.status_code in [200, 201]:
+        print(f"✅ Master record updated for {user}")
+    else:
+        print(f"❌ Failed to update master record: {result.status_code} - {result.text}")
+
+def trigger_next_gen(identity, mission_id):
     """Calls the master repo workflow to build the next challenge."""
     token = os.environ.get('GH_TOKEN')
     url = "https://api.github.com/repos/codequest-classroom/codequest-master/actions/workflows/invite-student.yml/dispatches"
-    requests.post(url, headers={"Authorization": f"token {token}"}, 
-                  json={"ref": "main", "inputs": {"username": user, "mission_id": mission_id}})
+    
+    # FIX: input names now match exactly what invite-student.yml expects
+    payload = {
+        "ref": "main",
+        "inputs": {
+            "student_username": identity['username'],
+            "student_name": identity['name'],
+            "first_mission": mission_id
+        }
+    }
+    
+    result = requests.post(url, headers={"Authorization": f"token {token}"}, json=payload)
+    if result.status_code == 204:
+        print(f"✅ Next mission triggered: {mission_id}")
+    else:
+        print(f"❌ Failed to trigger next mission: {result.status_code} - {result.text}")
 
 def write_feedback_file(passed, score, results, identity):
     with open('feedback.md', 'w') as f:
