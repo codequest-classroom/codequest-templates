@@ -125,7 +125,7 @@ def write_feedback_file(passed, score, results, identity):
         f.write("### Reviewer Results:\n")
         for r in results:
             f.write(f"- {r['feedback']} **{r['name']}**\n")
-        f.write(f"\n[View your Progress Tree](https://{identity['username']}.github.io)")
+        f.write(f"\n[View your Progress Tree](https://codequest-classroom.github.io/{identity['username']})")
 
 if __name__ == "__main__":
     check_mission()

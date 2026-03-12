@@ -1,43 +1,45 @@
-// Detects the username based on the GitHub Pages URL (e.g., "mishael.github.io")
-const username = window.location.hostname.split('.')[0];
-
-// Your Mission Map
-const missionTree = {
-    "web-level-1": {
-        name: "HTML Basics",
-        description: "🏗️ Build your first web pages!",
-        emoji: "📝",
-        missions: [
-            { id: "html-1-1", name: "Structure", repo: `${username}-html-1-1`, points: 5, number: 1 },
-            { id: "html-1-2", name: "Text", repo: `${username}-html-1-2`, points: 5, number: 2 },
-            { id: "html-1-3", name: "Links & Images", repo: `${username}-html-1-3`, points: 5, number: 3 }
-        ],
-        minToComplete: 2,
-        unlocks: ["web-level-2"]
-    },
-    "web-level-2": {
-        name: "CSS Basics",
-        description: "🎨 Make things beautiful!",
-        emoji: "✨",
-        missions: [
-            { id: "css-2-1", name: "Selectors", repo: `${username}-css-2-1`, points: 8, number: 4 },
-            { id: "css-2-2", name: "Box Model", repo: `${username}-css-2-2`, points: 8, number: 5 },
-            { id: "css-2-3", name: "Colors", repo: `${username}-css-2-3`, points: 8, number: 6 }
-        ],
-        minToComplete: 2,
-        unlocks: []
-    }
-};
-
 async function loadStudentProgress() {
     try {
+        // Get username from config.json (set per-student when repo is created)
+        const configRes = await fetch('./config.json');
+        const config = await configRes.json();
+        const username = config.username;
+
+        // Mission Map (defined here so repo names use the real username)
+        const missionTree = {
+            "web-level-1": {
+                name: "HTML Basics",
+                description: "🏗️ Build your first web pages!",
+                emoji: "📝",
+                missions: [
+                    { id: "html-1-1", name: "Structure", repo: `${username}-html-1-1`, points: 5, number: 1 },
+                    { id: "html-1-2", name: "Text", repo: `${username}-html-1-2`, points: 5, number: 2 },
+                    { id: "html-1-3", name: "Links & Images", repo: `${username}-html-1-3`, points: 5, number: 3 }
+                ],
+                minToComplete: 2,
+                unlocks: ["web-level-2"]
+            },
+            "web-level-2": {
+                name: "CSS Basics",
+                description: "🎨 Make things beautiful!",
+                emoji: "✨",
+                missions: [
+                    { id: "css-2-1", name: "Selectors", repo: `${username}-css-2-1`, points: 8, number: 4 },
+                    { id: "css-2-2", name: "Box Model", repo: `${username}-css-2-2`, points: 8, number: 5 },
+                    { id: "css-2-3", name: "Colors", repo: `${username}-css-2-3`, points: 8, number: 6 }
+                ],
+                minToComplete: 2,
+                unlocks: []
+            }
+        };
+
         // Fetch progress from the master repo (updated by review.py)
         const response = await fetch(
             `https://raw.githubusercontent.com/codequest-classroom/codequest-master/main/students/${username}.json`
         );
-        
+
         if (!response.ok) throw new Error('Student data not found');
-        
+
         const data = await response.json();
         const student = data.student;
         const progress = data.progress;
@@ -49,9 +51,8 @@ async function loadStudentProgress() {
 
         // Logic: Determine which levels are unlocked
         let unlockedLevels = ["web-level-1"];
-        
-        // Loop through levels to see if previous ones were completed
-        for (let [levelId, level] of Object.entries(missionTree)) {
+
+        for (let [, level] of Object.entries(missionTree)) {
             const completedInThisLevel = progress.completedMissions.filter(
                 m => level.missions.some(lm => lm.id === m.id)
             ).length;
@@ -69,7 +70,6 @@ async function loadStudentProgress() {
             const completedInLevel = progress.completedMissions.filter(
                 m => level.missions.some(lm => lm.id === m.id)
             ).length;
-            const levelComplete = completedInLevel >= level.minToComplete;
 
             html += `<div class="level ${isUnlocked ? '' : 'locked-level'}">`;
             html += `<h2>${level.emoji} ${level.name} ${level.emoji}</h2>`;
@@ -78,7 +78,7 @@ async function loadStudentProgress() {
 
             level.missions.forEach((mission, index) => {
                 const isCompleted = progress.completedMissions.some(m => m.id === mission.id);
-                
+
                 let status = 'locked';
                 if (isCompleted) {
                     status = 'completed';
