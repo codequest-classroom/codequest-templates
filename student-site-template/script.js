@@ -31,9 +31,9 @@ async function loadStudentProgress() {
             }
         };
 
-        // Fetch progress from the master repo (updated by review.py)
+        // Fetch progress from the public portfolio repo (updated by review.py)
         const response = await fetch(
-            `https://raw.githubusercontent.com/codequest-classroom/codequest-master/main/students/${username}.json`
+            `https://raw.githubusercontent.com/codequest-classroom/${username}/main/progress.json`
         );
 
         if (!response.ok) throw new Error('Student data not found');

@@ -96,6 +96,28 @@ def sync_to_master(identity):
     else:
         print(f"❌ Failed to update master record: {result.status_code} - {result.text}")
 
+    # Also push progress to the public portfolio repo so the site can read it
+    sync_to_portfolio(identity, existing, headers)
+
+def sync_to_portfolio(identity, master_data, headers):
+    """Pushes progress.json to the public codequest-classroom/{username} repo so the site can read it."""
+    user = identity['username']
+    url = f"https://api.github.com/repos/codequest-classroom/{user}/contents/progress.json"
+
+    existing = requests.get(url, headers=headers)
+    put_payload = {
+        "message": f"🏆 Progress update",
+        "content": base64.b64encode(json.dumps(master_data, indent=2).encode()).decode()
+    }
+    if existing.status_code == 200:
+        put_payload["sha"] = existing.json().get("sha")
+
+    result = requests.put(url, headers=headers, json=put_payload)
+    if result.status_code in [200, 201]:
+        print(f"✅ Portfolio progress updated for {user}")
+    else:
+        print(f"❌ Failed to update portfolio progress: {result.status_code} - {result.text}")
+
 def trigger_next_gen(identity, mission_id):
     """Calls the master repo workflow to build the next challenge."""
     token = os.environ.get('GH_TOKEN')
