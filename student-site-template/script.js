@@ -11,25 +11,23 @@ async function loadStudentProgress() {
                 name: "HTML Basics",
                 description: "🏗️ Build your first web pages!",
                 emoji: "📝",
+                xpRequired: 0,
                 missions: [
                     { id: "html-1-1", name: "Structure", repo: `${username}-html-1-1`, points: 5, number: 1 },
                     { id: "html-1-2", name: "Text", repo: `${username}-html-1-2`, points: 5, number: 2 },
                     { id: "html-1-3", name: "Links & Images", repo: `${username}-html-1-3`, points: 5, number: 3 }
-                ],
-                minToComplete: 2,
-                unlocks: ["web-level-2"]
+                ]
             },
             "web-level-2": {
                 name: "CSS Basics",
                 description: "🎨 Make things beautiful!",
                 emoji: "✨",
+                xpRequired: 10,
                 missions: [
                     { id: "css-2-1", name: "Selectors", repo: `${username}-css-2-1`, points: 8, number: 4 },
                     { id: "css-2-2", name: "Box Model", repo: `${username}-css-2-2`, points: 8, number: 5 },
                     { id: "css-2-3", name: "Colors", repo: `${username}-css-2-3`, points: 8, number: 6 }
-                ],
-                minToComplete: 2,
-                unlocks: []
+                ]
             }
         };
 
@@ -49,28 +47,16 @@ async function loadStudentProgress() {
         document.getElementById('xp').textContent = progress.xp || 0;
         document.getElementById('badges').textContent = progress.badges ? progress.badges.length : 0;
 
-        // Logic: Determine which levels are unlocked
-        let unlockedLevels = ["web-level-1"];
-
-        for (let [, level] of Object.entries(missionTree)) {
-            const completedInThisLevel = progress.completedMissions.filter(
-                m => level.missions.some(lm => lm.id === m.id)
-            ).length;
-
-            if (completedInThisLevel >= level.minToComplete && level.unlocks.length > 0) {
-                unlockedLevels.push(...level.unlocks);
-            }
-        }
+        // Logic: Unlock levels based on XP threshold
+        const unlockedLevels = Object.entries(missionTree)
+            .filter(([, level]) => progress.xp >= level.xpRequired)
+            .map(([levelId]) => levelId);
 
         let html = '';
 
         // Build the Skill Tree HTML
         for (let [levelId, level] of Object.entries(missionTree)) {
             const isUnlocked = unlockedLevels.includes(levelId);
-            const completedInLevel = progress.completedMissions.filter(
-                m => level.missions.some(lm => lm.id === m.id)
-            ).length;
-
             html += `<div class="level ${isUnlocked ? '' : 'locked-level'}">`;
             html += `<h2>${level.emoji} ${level.name} ${level.emoji}</h2>`;
             html += `<div class="level-description">${level.description}</div>`;
@@ -103,7 +89,7 @@ async function loadStudentProgress() {
             });
 
             html += `</div>`; // Close missions-row
-            html += `<div class="level-progress">📊 ${completedInLevel}/${level.minToComplete} missions for next level</div>`;
+            html += `<div class="level-progress">🔓 Requires ${level.xpRequired} XP to unlock</div>`;
             html += `</div>`; // Close level
             html += `<div class="connector-large">⬇️</div>`;
         }
