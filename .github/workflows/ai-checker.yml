@@ -16,21 +16,35 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
+      - name: 🔍 Check this is a real student repo
+        id: check
+        run: |
+          if grep -q '{{student_username}}' identity.json 2>/dev/null; then
+            echo "⏭️ Template repo detected, skipping review."
+            echo "is_template=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_template=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 🐍 Setup Python
+        if: steps.check.outputs.is_template != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: 📦 Install dependencies
+        if: steps.check.outputs.is_template != 'true'
         run: |
           pip install requests
 
       - name: 🤖 Run AI Review
+        if: steps.check.outputs.is_template != 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: python review.py
 
       - name: 💾 Commit feedback and progress
+        if: steps.check.outputs.is_template != 'true'
         run: |
           git config user.name "CodeQuest Bot"
           git config user.email "bot@codequest.dev"
@@ -38,6 +52,7 @@ jobs:
           git diff --staged --quiet || (git commit -m "🤖 Auto-update: feedback + progress" && git push)
 
       - name: 📊 Show result
+        if: steps.check.outputs.is_template != 'true'
         run: |
           if [ -f feedback.md ]; then
             echo "✅ Feedback generated successfully!"
@@ -48,6 +63,7 @@ jobs:
           fi
 
       - name: 🎯 Mission Status
+        if: steps.check.outputs.is_template != 'true'
         run: |
           if [ -f identity.json ]; then
             XP=$(grep -o '"xp": [0-9]*' identity.json | cut -d' ' -f2)
