@@ -4,4 +4,4 @@
 
 ### Reviewer Results:
 
-[View your Progress Tree](https://{{student_username}}.github.io)
+[View your Progress Tree](https://codequest-classroom.github.io/{{student_username}})
