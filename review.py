@@ -46,9 +46,15 @@ def check_mission():
             
             # 4. Trigger ALL next missions (Points-based branching)
             next_missions = mission.get('nextInLevel', [])
+            if 'unlockedMissions' not in identity:
+                identity['unlockedMissions'] = []
             for next_id in next_missions:
                 trigger_next_gen(identity, next_id)  # FIX: pass full identity not just user
+                if next_id not in identity['unlockedMissions']:
+                    identity['unlockedMissions'].append(next_id)
                 print(f"🔗 Triggering next mission: {next_id}")
+            # Re-sync so unlockedMissions is written to progress.json
+            sync_to_master(identity)
 
     # 5. Write feedback for the student to read in GitHub
     write_feedback_file(is_passed, points_earned, results, identity)
@@ -80,6 +86,7 @@ def sync_to_master(identity):
     existing['student']['username'] = user
     existing['progress']['xp'] = identity['xp']
     existing['progress']['completedMissions'] = identity['completedMissions']
+    existing['progress']['unlockedMissions'] = identity.get('unlockedMissions', [])
     existing['progress']['badges'] = identity.get('badges', [])
     existing['progress']['currentMission'] = identity.get('currentMission', '')
 

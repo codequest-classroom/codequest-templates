@@ -47,10 +47,13 @@ async function loadStudentProgress() {
         document.getElementById('xp').textContent = progress.xp || 0;
         document.getElementById('badges').textContent = progress.badges ? progress.badges.length : 0;
 
-        // Logic: Unlock levels based on XP threshold
+        // Logic: Unlock levels based on XP threshold (controls level header visibility)
         const unlockedLevels = Object.entries(missionTree)
             .filter(([, level]) => progress.xp >= level.xpRequired)
             .map(([levelId]) => levelId);
+
+        // unlockedMissions = repos that actually exist (set by review.py after trigger_next_gen)
+        const unlockedMissions = progress.unlockedMissions || [];
 
         let html = '';
 
@@ -68,7 +71,7 @@ async function loadStudentProgress() {
                 let status = 'locked';
                 if (isCompleted) {
                     status = 'completed';
-                } else if (isUnlocked) {
+                } else if (unlockedMissions.includes(mission.id)) {
                     status = 'available';
                 }
 
