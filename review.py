@@ -41,18 +41,13 @@ def check_mission():
                 "at": datetime.now().isoformat()
             })
             
+            old_xp = identity['xp'] - mission.get('points', 0)
+
             # Sync to the Master Repo (This updates the skill tree website)
             sync_to_master(identity)
-            
-            # 4. Trigger ALL next missions (Points-based branching)
-            next_missions = mission.get('nextInLevel', [])
-            if 'unlockedMissions' not in identity:
-                identity['unlockedMissions'] = []
-            for next_id in next_missions:
-                trigger_next_gen(identity, next_id)  # FIX: pass full identity not just user
-                if next_id not in identity['unlockedMissions']:
-                    identity['unlockedMissions'].append(next_id)
-                print(f"🔗 Triggering next mission: {next_id}")
+
+            # 4. XP-threshold unlocking: trigger all missions in newly-unlocked levels
+            unlock_new_levels(identity, old_xp, identity['xp'])
             # Re-sync so unlockedMissions is written to progress.json
             sync_to_master(identity)
 
@@ -124,6 +119,32 @@ def sync_to_portfolio(identity, master_data, headers):
         print(f"✅ Portfolio progress updated for {user}")
     else:
         print(f"❌ Failed to update portfolio progress: {result.status_code} - {result.text}")
+
+def unlock_new_levels(identity, old_xp, new_xp):
+    """Fetch web-dev.json and trigger all missions in any level newly crossed by XP."""
+    token = os.environ.get('GH_TOKEN')
+    headers = {"Authorization": f"token {token}"}
+    path_url = "https://api.github.com/repos/codequest-classroom/codequest-master/contents/paths/web-dev.json"
+    res = requests.get(path_url, headers=headers)
+    if res.status_code != 200:
+        print(f"⚠️ Could not fetch path config: {res.status_code}")
+        return
+
+    path_config = json.loads(base64.b64decode(res.json()['content']))
+    if 'unlockedMissions' not in identity:
+        identity['unlockedMissions'] = []
+
+    for level in path_config.get('levels', []):
+        threshold = level.get('pointsToUnlock', 0)
+        # Trigger missions only when XP just crossed this level's threshold
+        if old_xp < threshold <= new_xp:
+            print(f"🔓 Level '{level['name']}' unlocked at {new_xp} XP!")
+            for m in level.get('missions', []):
+                mission_id = m['id'] if isinstance(m, dict) else m
+                if mission_id not in identity['unlockedMissions']:
+                    trigger_next_gen(identity, mission_id)
+                    identity['unlockedMissions'].append(mission_id)
+                    print(f"   ➕ Triggered: {mission_id}")
 
 def trigger_next_gen(identity, mission_id):
     """Calls the master repo workflow to build the next challenge."""

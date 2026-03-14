@@ -5,41 +5,23 @@ async function loadStudentProgress() {
         const config = await configRes.json();
         const username = config.username;
 
-        // Mission Map (defined here so repo names use the real username)
-        const missionTree = {
-            "web-level-1": {
-                name: "HTML Basics",
-                description: "🏗️ Build your first web pages!",
-                emoji: "📝",
-                xpRequired: 0,
-                missions: [
-                    { id: "html-1-1", name: "Structure", repo: `${username}-html-1-1`, points: 5, number: 1 },
-                    { id: "html-1-2", name: "Text", repo: `${username}-html-1-2`, points: 5, number: 2 },
-                    { id: "html-1-3", name: "Links & Images", repo: `${username}-html-1-3`, points: 5, number: 3 }
-                ]
-            },
-            "web-level-2": {
-                name: "CSS Basics",
-                description: "🎨 Make things beautiful!",
-                emoji: "✨",
-                xpRequired: 10,
-                missions: [
-                    { id: "css-2-1", name: "Selectors", repo: `${username}-css-2-1`, points: 8, number: 4 },
-                    { id: "css-2-2", name: "Box Model", repo: `${username}-css-2-2`, points: 8, number: 5 },
-                    { id: "css-2-3", name: "Colors", repo: `${username}-css-2-3`, points: 8, number: 6 }
-                ]
-            }
-        };
+        // Load the mission tree and student progress in parallel
+        const [pathRes, progressRes] = await Promise.all([
+            fetch(
+                'https://api.github.com/repos/codequest-classroom/codequest-master/contents/paths/web-dev.json',
+                { headers: { 'Accept': 'application/vnd.github.v3.raw' } }
+            ),
+            fetch(
+                `https://api.github.com/repos/codequest-classroom/${username}/contents/progress.json`,
+                { headers: { 'Accept': 'application/vnd.github.v3.raw' } }
+            )
+        ]);
 
-        // Fetch progress via GitHub API (no CDN cache — always fresh)
-        const response = await fetch(
-            `https://api.github.com/repos/codequest-classroom/${username}/contents/progress.json`,
-            { headers: { 'Accept': 'application/vnd.github.v3.raw' } }
-        );
+        if (!progressRes.ok) throw new Error('Student data not found');
+        if (!pathRes.ok) throw new Error('Path config not found');
 
-        if (!response.ok) throw new Error('Student data not found');
-
-        const data = await response.json();
+        const pathConfig = await pathRes.json();
+        const data = await progressRes.json();
         const student = data.student;
         const progress = data.progress;
 
@@ -48,41 +30,40 @@ async function loadStudentProgress() {
         document.getElementById('xp').textContent = progress.xp || 0;
         document.getElementById('badges').textContent = progress.badges ? progress.badges.length : 0;
 
-        // Logic: Unlock levels based on XP threshold (controls level header visibility)
-        const unlockedLevels = Object.entries(missionTree)
-            .filter(([, level]) => progress.xp >= level.xpRequired)
-            .map(([levelId]) => levelId);
-
-        // unlockedMissions = repos that actually exist (set by review.py after trigger_next_gen)
+        const completedMissions = progress.completedMissions || [];
         const unlockedMissions = progress.unlockedMissions || [];
 
         let html = '';
 
-        // Build the Skill Tree HTML
-        for (let [levelId, level] of Object.entries(missionTree)) {
-            const isUnlocked = unlockedLevels.includes(levelId);
-            html += `<div class="level ${isUnlocked ? '' : 'locked-level'}">`;
+        for (const level of pathConfig.levels) {
+            const isLevelUnlocked = (progress.xp || 0) >= level.pointsToUnlock;
+            html += `<div class="level ${isLevelUnlocked ? '' : 'locked-level'}">`;
             html += `<h2>${level.emoji} ${level.name} ${level.emoji}</h2>`;
             html += `<div class="level-description">${level.description}</div>`;
             html += `<div class="missions-row">`;
 
             level.missions.forEach((mission, index) => {
-                const isCompleted = progress.completedMissions.some(m => m.id === mission.id);
+                const missionId = typeof mission === 'string' ? mission : mission.id;
+                const missionName = typeof mission === 'string' ? mission : mission.name;
+                const missionPoints = typeof mission === 'object' ? mission.points : level.pointsPerMission;
+                const missionNumber = typeof mission === 'object' ? mission.number : index + 1;
+                const repoName = `${username}-${missionId}`;
 
+                const isCompleted = completedMissions.some(m => m.id === missionId);
                 let status = 'locked';
                 if (isCompleted) {
                     status = 'completed';
-                } else if (unlockedMissions.includes(mission.id)) {
+                } else if (unlockedMissions.includes(missionId)) {
                     status = 'available';
                 }
 
                 html += `
-                    <div class="mission-circle ${status}" data-repo="${mission.repo}">
+                    <div class="mission-circle ${status}" data-repo="${repoName}">
                         <div class="circle">
-                            <span class="circle-number">${mission.number}</span>
-                            <span class="circle-points">${mission.points} pts</span>
+                            <span class="circle-number">${missionNumber}</span>
+                            <span class="circle-points">${missionPoints} pts</span>
                         </div>
-                        <span class="mission-name">${mission.name}</span>
+                        <span class="mission-name">${missionName}</span>
                         <div class="status-icon">${status === 'completed' ? '✅' : (status === 'available' ? '✨' : '🔒')}</div>
                     </div>
                 `;
@@ -93,18 +74,17 @@ async function loadStudentProgress() {
             });
 
             html += `</div>`; // Close missions-row
-            html += `<div class="level-progress">🔓 Requires ${level.xpRequired} XP to unlock</div>`;
+            html += `<div class="level-progress">🔓 Requires ${level.pointsToUnlock} XP to unlock</div>`;
             html += `</div>`; // Close level
             html += `<div class="connector-large">⬇️</div>`;
         }
 
         document.getElementById('skill-tree').innerHTML = html;
 
-        // Handle Clicks: Only allow clicking on Available or Completed missions
+        // Handle Clicks: only available or completed missions are clickable
         document.querySelectorAll('.mission-circle.available, .mission-circle.completed').forEach(circle => {
             circle.addEventListener('click', function() {
-                const repoName = this.dataset.repo;
-                window.open(`https://github.com/codequest-classroom/${repoName}`, '_blank');
+                window.open(`https://github.com/codequest-classroom/${this.dataset.repo}`, '_blank');
             });
         });
 
