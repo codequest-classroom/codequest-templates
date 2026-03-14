@@ -172,6 +172,7 @@ def write_feedback_file(passed, score, results, identity):
         status = "🎉 MISSION PASSED!" if passed else "⚠️ MISSION INCOMPLETE"
         f.write(f"# {status}\n\n")
         f.write(f"### Points: {score} | Total XP: {identity['xp']}\n\n")
+        f.write(f"*Last reviewed: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}*\n\n")
         f.write("### Reviewer Results:\n")
         for r in results:
             f.write(f"- {r['feedback']} **{r['name']}**\n")
