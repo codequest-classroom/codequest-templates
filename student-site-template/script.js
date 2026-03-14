@@ -6,9 +6,10 @@ async function loadStudentProgress() {
         const username = config.username;
 
         // Load the mission tree and student progress in parallel
+        // Both served from the public portfolio repo — no auth needed, always fresh via API
         const [pathRes, progressRes] = await Promise.all([
             fetch(
-                'https://api.github.com/repos/codequest-classroom/codequest-master/contents/paths/web-dev.json',
+                `https://api.github.com/repos/codequest-classroom/${username}/contents/web-dev.json`,
                 { headers: { 'Accept': 'application/vnd.github.v3.raw' } }
             ),
             fetch(
