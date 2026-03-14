@@ -31,9 +31,10 @@ async function loadStudentProgress() {
             }
         };
 
-        // Fetch progress from the public portfolio repo (updated by review.py)
+        // Fetch progress via GitHub API (no CDN cache — always fresh)
         const response = await fetch(
-            `https://raw.githubusercontent.com/codequest-classroom/${username}/main/progress.json`
+            `https://api.github.com/repos/codequest-classroom/${username}/contents/progress.json`,
+            { headers: { 'Accept': 'application/vnd.github.v3.raw' } }
         );
 
         if (!response.ok) throw new Error('Student data not found');
