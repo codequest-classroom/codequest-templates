@@ -12,14 +12,17 @@
         <header>
             <h1 id="student-name">Loading...</h1>
             <div class="stats">
-                <div class="stat">⭐ XP: <span id="xp">—</span></div>
-                <div class="stat">🏆 Badges: <span id="badges">—</span></div>
-                <button id="refresh-btn" onclick="loadStudentProgress(true)">🔄 Refresh</button>
+                <div class="stat">⭐ XP: <span id="xp">0</span></div>
+                <div class="stat">🏆 Badges: <span id="badges">0</span></div>
             </div>
         </header>
 
         <div id="skill-tree" class="skill-tree">
             <!-- Circle tree will be built here -->
+        </div>
+
+        <div style="text-align:center; margin: 16px 0;">
+            <button onclick="loadStudentProgress()" style="font-size:1rem; padding:10px 24px; border-radius:20px; background:#4CAF50; color:white; border:none; cursor:pointer;">🔄 Refresh Progress</button>
         </div>
 
         <footer>
