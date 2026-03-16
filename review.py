@@ -46,7 +46,12 @@ def check_mission():
             # Sync to the Master Repo (This updates the skill tree website)
             sync_to_master(identity)
 
-            # 4. XP-threshold unlocking: trigger all missions in newly-unlocked levels
+            # 4a. Trigger next missions in the same level (nextInLevel)
+            for next_id in mission.get('nextInLevel', []):
+                trigger_next_gen(identity, next_id)
+                print(f"🔗 Triggering next mission: {next_id}")
+
+            # 4b. XP-threshold unlocking: trigger all missions in newly-unlocked levels
             unlock_new_levels(identity, old_xp, identity['xp'])
             # Re-sync so unlockedMissions is written to progress.json
             sync_to_master(identity)
