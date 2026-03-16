@@ -75,8 +75,19 @@ function renderTree(pathConfig, data, username) {
 
 // ── Main Load ────────────────────────────────────────────────────────────────
 async function loadStudentProgress(isManualRefresh = false) {
-    const config   = await (await fetch('./config.json')).json();
-    const username = config.username;
+    let username;
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const config = await (await fetch('./config.json', { signal: controller.signal })).json();
+        clearTimeout(timeout);
+        username = config.username;
+    } catch (err) {
+        document.getElementById('student-name').textContent = 'Error loading profile';
+        document.getElementById('skill-tree').innerHTML =
+            `<h2>Could not load config.json — please refresh the page.</h2>`;
+        return;
+    }
 
     const cacheKey = `cq_progress_${username}`;
     const pathKey  = 'cq_webdev';
