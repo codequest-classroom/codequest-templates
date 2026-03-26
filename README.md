@@ -78,9 +78,9 @@ Now modify this code to make it YOUR own!
 
 <div align="center">
   
-[![OPEN IN STACKBLITZ](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/codequest-classroom/{{repo-name}})
+[![START CODING](https://img.shields.io/badge/🚀-OPEN_CODING_ENVIRONMENT-4CAF50?style=for-the-badge&logo=github)](https://codequest-classroom.github.io/{{repo-name}}/basic-web-mission/submit.html)
 
-**✨ One click → Instant coding environment! No installation needed! ✨**
+**✨ One click → Instant coding environment with live preview! ✨**
 
 </div>
 
@@ -121,7 +121,7 @@ Now modify this code to make it YOUR own!
 <div style="display: flex; align-items: center; margin: 20px 0;">
   <div style="flex: 1; text-align: center; padding: 10px;">
     <div style="background: #4CAF50; color: white; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;">1</div>
-    <p>Click StackBlitz button above ☝️</p>
+    <p>Click the Start Coding button above ☝️</p>
   </div>
   <div style="flex: 1; text-align: center; padding: 10px;">
     <div style="background: #2196F3; color: white; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;">2</div>
@@ -203,7 +203,7 @@ Now modify this code to make it YOUR own!
   
 ### 🎉 **READY? LET'S DO THIS!** 🎉
 
-[![START CODING](https://img.shields.io/badge/🚀-CLICK_TO_START_CODING-4CAF50?style=for-the-badge&logo=github)](https://stackblitz.com/github/codequest-classroom/{{repo-name}})
+[![START CODING](https://img.shields.io/badge/🚀-CLICK_TO_START_CODING-4CAF50?style=for-the-badge&logo=github)](https://codequest-classroom.github.io/{{repo-name}}/basic-web-mission/submit.html)
 
 *Remember: Every expert was once a beginner. You've got this!* 💪
 
