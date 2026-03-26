@@ -165,15 +165,57 @@ def trigger_next_gen(identity, mission_id):
         print(f"❌ Failed to trigger next mission: {result.status_code} - {result.text}")
 
 def write_feedback_file(passed, score, results, identity):
-    with open('feedback.md', 'w') as f:
-        status = "🎉 MISSION PASSED!" if passed else "⚠️ MISSION INCOMPLETE"
-        f.write(f"# {status}\n\n")
-        f.write(f"### Points: {score} | Total XP: {identity['xp']}\n\n")
-        f.write(f"*Last reviewed: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}*\n\n")
-        f.write("### Reviewer Results:\n")
-        for r in results:
-            f.write(f"- {r['feedback']} **{r['name']}**\n")
-        f.write(f"\n[View your Progress Tree](https://codequest-classroom.github.io/{identity['username']})")
+    """Write pass/fail feedback into the ## AI Feedback section of README.md.
+
+    All other README sections are preserved exactly as-is.
+    The section is appended when it doesn't already exist.
+    """
+    import re
+
+    status = "🎉 MISSION PASSED!" if passed else "⚠️ MISSION INCOMPLETE"
+
+    # Pull requirement names from mission.json for richer feedback context
+    try:
+        with open('mission.json', 'r', encoding='utf-8-sig') as _f:
+            _m = json.load(_f)
+        reqs = _m.get('requirements', [])
+    except Exception:
+        reqs = []
+
+    lines = [
+        "## AI Feedback\n\n",
+        f"**{status}**\n\n",
+        f"**Points: {score} | Total XP: {identity['xp']}**\n\n",
+        f"*Last reviewed: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}*\n\n",
+        "### Results\n\n",
+    ]
+    for r in results:
+        req_hint = ""
+        for req in reqs:
+            if r['name'].lower() in req.lower() or req.lower() in r['name'].lower():
+                req_hint = f" — *{req}*"
+                break
+        lines.append(f"- {r['feedback']} **{r['name']}**{req_hint}\n")
+
+    lines.append(f"\n[View your Progress Tree](https://codequest-classroom.github.io/{identity['username']})\n")
+
+    new_section = "".join(lines)
+
+    try:
+        with open('README.md', 'r', encoding='utf-8') as _f:
+            content = _f.read()
+    except FileNotFoundError:
+        content = ""
+
+    # Replace existing AI Feedback section (up to next ## heading or EOF)
+    pattern = r'^## AI Feedback\s*\n[\s\S]*?(?=\n## |\Z)'
+    if re.search(pattern, content, flags=re.MULTILINE):
+        content = re.sub(pattern, new_section.rstrip('\n'), content, flags=re.MULTILINE)
+    else:
+        content = content.rstrip('\n') + '\n\n---\n\n' + new_section
+
+    with open('README.md', 'w', encoding='utf-8') as _f:
+        _f.write(content)
 
 if __name__ == "__main__":
     check_mission()

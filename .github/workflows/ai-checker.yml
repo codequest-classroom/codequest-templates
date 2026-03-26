@@ -43,24 +43,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: python review.py
 
-      - name: 💾 Commit feedback and progress
+      - name: 💾 Commit AI feedback and progress
         if: steps.check.outputs.is_template != 'true'
         run: |
           git config user.name "CodeQuest Bot"
           git config user.email "bot@codequest.dev"
-          git add feedback.md identity.json
-          git diff --staged --quiet || (git commit -m "🤖 Auto-update: feedback + progress" && git push)
+          git add README.md identity.json
+          git diff --staged --quiet || (git commit -m "🤖 Auto-update: AI feedback + progress" && git push)
 
       - name: 📊 Show result
         if: steps.check.outputs.is_template != 'true'
         run: |
-          if [ -f feedback.md ]; then
-            echo "✅ Feedback generated successfully!"
-            echo "📝 First 5 lines of feedback:"
-            head -5 feedback.md
-          else
-            echo "❌ No feedback generated"
-          fi
+          echo "✅ Feedback written to README.md (## AI Feedback section)"
+          grep -A 10 "^## AI Feedback" README.md | head -12 || echo "No AI Feedback section found"
 
       - name: 🎯 Mission Status
         if: steps.check.outputs.is_template != 'true'

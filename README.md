@@ -208,3 +208,9 @@ Now modify this code to make it YOUR own!
 *Remember: Every expert was once a beginner. You've got this!* 💪
 
 </div>
+
+---
+
+## AI Feedback
+
+> ⏳ No feedback yet — push your code to `submissions/index.html` to get AI feedback!

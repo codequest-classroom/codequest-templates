@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeQuest Mission</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --accent:    #58a6ff;
+      --green:     #3fb950;
+      --orange:    #f78166;
+      --text:      #c9d1d9;
+      --muted:     #8b949e;
+      --header-h:  48px;
+      --footer-h:  56px;
+      --left-w:    300px;
+      --right-w:   380px;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; overflow: hidden; }
+
+    /* ── Header ── */
+    #header {
+      height: var(--header-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; gap: 12px; flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .logo { font-weight: 700; font-size: 15px; color: var(--accent); white-space: nowrap; }
+    #mission-title { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    #save-status { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+    /* ── Panels ── */
+    #panels {
+      display: grid;
+      grid-template-columns: var(--left-w) 1fr var(--right-w);
+      height: calc(100vh - var(--header-h) - var(--footer-h));
+      overflow: hidden;
+    }
+
+    /* ── Left sidebar ── */
+    #panel-left {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex; flex-direction: column;
+    }
+    #panel-left::-webkit-scrollbar { width: 6px; }
+    #panel-left::-webkit-scrollbar-track { background: transparent; }
+    #panel-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .video-wrap { width: 100%; aspect-ratio: 16/9; background: #000; flex-shrink: 0; }
+    .video-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+    .no-video { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: 12px; }
+
+    .sidebar-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .sidebar-section:last-child { border-bottom: none; }
+
+    details.lesson { margin-bottom: 8px; }
+    details.lesson:last-child { margin-bottom: 0; }
+    details.lesson summary {
+      cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+      font-weight: 600; font-size: 13px; color: var(--text); padding: 6px 0;
+      user-select: none;
+    }
+    details.lesson summary::-webkit-details-marker { display: none; }
+    details.lesson summary::before { content: '▶'; font-size: 10px; color: var(--muted); transition: transform 0.15s; }
+    details.lesson[open] summary::before { transform: rotate(90deg); }
+    details.lesson .lesson-body { padding: 8px 0 4px 16px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    details.lesson .lesson-body pre {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px 12px; margin: 8px 0; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; color: var(--text);
+    }
+
+    .section-title { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 10px; }
+
+    .checklist-item { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+    .checklist-item input[type="checkbox"] { margin-top: 2px; accent-color: var(--green); flex-shrink: 0; }
+    .checklist-item.done label { text-decoration: line-through; color: var(--muted); }
+
+    /* ── Middle — Editor ── */
+    #panel-middle { display: flex; flex-direction: column; overflow: hidden; }
+    .panel-toolbar {
+      height: 36px; background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 12px; flex-shrink: 0;
+    }
+    .panel-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    #autosave-indicator { font-size: 11px; color: var(--muted); }
+    #monaco-container { flex: 1; overflow: hidden; }
+
+    /* ── Right — Preview ── */
+    #panel-right { display: flex; flex-direction: column; border-left: 1px solid var(--border); overflow: hidden; }
+    #preview-frame { flex: 1; border: none; background: #fff; }
+
+    /* ── Footer ── */
+    #footer {
+      height: var(--footer-h);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0;
+    }
+    #submit-status { font-size: 13px; color: var(--muted); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 6px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: var(--green); color: #0d1117; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-github { background: #24292f; color: #fff; border: 1px solid var(--border); }
+    .btn:not(:disabled):hover { opacity: 0.85; }
+
+    /* ── AI Feedback panel ── */
+    #feedback-section {
+      position: fixed; bottom: var(--footer-h); right: 0;
+      width: var(--right-w); max-height: 50vh; overflow-y: auto;
+      background: var(--surface); border: 1px solid var(--border); border-right: none; border-bottom: none;
+      border-radius: 8px 0 0 0; padding: 16px; z-index: 100;
+      box-shadow: -4px -4px 20px rgba(0,0,0,0.4);
+    }
+    #feedback-section h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--accent); }
+    #feedback-content { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+    #feedback-content .pass { color: var(--green); }
+    #feedback-content .fail { color: var(--orange); }
+    .feedback-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── PAT / OAuth modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 28px; width: 440px; max-width: 95vw;
+    }
+    .modal-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .modal-box p { color: var(--muted); font-size: 13px; line-height: 1.6; margin-bottom: 16px; }
+    .modal-box input {
+      width: 100%; padding: 9px 12px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-size: 13px; margin-bottom: 12px; outline: none;
+    }
+    .modal-box input:focus { border-color: var(--accent); }
+    .modal-box .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-box .device-code {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 16px; text-align: center; margin: 16px 0;
+    }
+    .modal-box .device-code .code { font-family: monospace; font-size: 22px; font-weight: 700; letter-spacing: 4px; color: var(--accent); }
+    .modal-box .device-code small { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .modal-box a { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div class="header-left">
+    <span class="logo">⚔️ CodeQuest</span>
+    <span id="mission-title">Loading mission…</span>
+  </div>
+  <div class="header-right">
+    <span id="save-status"></span>
+    <button id="auth-btn" class="btn btn-github" onclick="handleAuth()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      Login with GitHub
+    </button>
+  </div>
+</div>
+
+<div id="panels">
+  <!-- Left: tutorial sidebar -->
+  <aside id="panel-left">
+    <div class="video-wrap" id="video-wrap">
+      <div class="no-video">No tutorial video configured</div>
+    </div>
+
+    <div class="sidebar-section" id="lessons-section" style="display:none">
+      <div class="section-title">Lessons</div>
+      <div id="lessons-list"></div>
+    </div>
+
+    <div class="sidebar-section" id="checklist-section" style="display:none">
+      <div class="section-title">Checklist</div>
+      <div id="checklist-list"></div>
+    </div>
+  </aside>
+
+  <!-- Middle: Monaco Editor -->
+  <div id="panel-middle">
+    <div class="panel-toolbar">
+      <span class="panel-label">Editor</span>
+      <span id="autosave-indicator"></span>
+    </div>
+    <div id="monaco-container"></div>
+  </div>
+
+  <!-- Right: Live preview -->
+  <div id="panel-right">
+    <div class="panel-toolbar">
+      <span class="panel-label">Live Preview</span>
+      <span style="font-size:11px;color:var(--muted)">updates as you type</span>
+    </div>
+    <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin" title="Live preview"></iframe>
+  </div>
+</div>
+
+<footer id="footer">
+  <span id="submit-status"></span>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span id="user-badge" style="font-size:12px;color:var(--muted)"></span>
+    <button id="submit-btn" class="btn btn-primary" onclick="submitWork()">🚀 Submit Mission</button>
+  </div>
+</footer>
+
+<!-- AI Feedback panel (hidden until after submit) -->
+<div id="feedback-section" style="display:none">
+  <h3>🤖 AI Feedback</h3>
+  <div id="feedback-content"></div>
+</div>
+
+<!-- PAT fallback modal -->
+<div id="pat-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePATModal()">
+  <div class="modal-box">
+    <h3>🔑 GitHub Personal Access Token</h3>
+    <p>
+      No OAuth app is configured. Create a <strong>classic PAT</strong> with
+      <code>repo</code> scope at
+      <a href="https://github.com/settings/tokens/new?scopes=repo&description=CodeQuest" target="_blank" rel="noopener">github.com/settings/tokens</a>
+      and paste it below.
+    </p>
+    <input id="pat-input" type="password" placeholder="ghp_…" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closePATModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePAT()">Save Token</button>
+    </div>
+  </div>
+</div>
+
+<!-- Device-flow OAuth modal -->
+<div id="device-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>🔐 Authorize with GitHub</h3>
+    <p>Open <a id="device-url" href="#" target="_blank" rel="noopener">github.com/login/device</a> and enter this code:</p>
+    <div class="device-code">
+      <div class="code" id="device-code-display">—</div>
+      <small>Waiting for you to authorize…<span class="feedback-spinner"></span></small>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="cancelDeviceFlow()">Cancel</button>
+      <button class="btn btn-primary" onclick="copyDeviceCode()">Copy Code</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+<script>
+'use strict';
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let editor        = null;
+let mission       = {};
+let ghToken       = null;
+let repoOwner     = null;
+let repoName      = null;
+let devicePollTimer = null;
+let feedbackTimer   = null;
+let lastSavedHash   = '';
+
+// ─── Boot ────────────────────────────────────────────────────────────────────
+(async function init() {
+  mission  = await loadMission();
+  ghToken  = localStorage.getItem('codequest_gh_token');
+  detectRepo();
+  renderHeader();
+  renderSidebar();
+  initMonaco();
+  handleOAuthCallback();   // exchange ?code= if we just came back from GitHub
+  updateAuthUI();
+})();
+
+// ─── Mission config ───────────────────────────────────────────────────────────
+async function loadMission() {
+  try {
+    const res = await fetch('../mission.json');
+    if (!res.ok) throw new Error(res.status);
+    return await res.json();
+  } catch {
+    console.warn('Could not load mission.json — using defaults.');
+    return {};
+  }
+}
+
+// ─── Repo detection ───────────────────────────────────────────────────────────
+function detectRepo() {
+  // 1. Explicit in mission.json
+  if (mission.repoOwner && mission.repoName) {
+    repoOwner = mission.repoOwner;
+    repoName  = mission.repoName;
+    return;
+  }
+  // 2. GitHub Pages URL: https://{owner}.github.io/{repo}/...
+  const host = window.location.hostname;
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  if (host.endsWith('.github.io')) {
+    repoOwner = host.replace('.github.io', '');
+    repoName  = parts[0] || '';
+  }
+}
+
+// ─── UI rendering ─────────────────────────────────────────────────────────────
+function renderHeader() {
+  document.title = mission.title ? `CodeQuest — ${mission.title}` : 'CodeQuest';
+  document.getElementById('mission-title').textContent = mission.title || 'Mission';
+}
+
+function renderSidebar() {
+  // YouTube video
+  if (mission.videoId) {
+    document.getElementById('video-wrap').innerHTML =
+      `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(mission.videoId)}?rel=0"
+               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+               allowfullscreen></iframe>`;
+  }
+
+  // Collapsible lesson sections
+  const lessons = mission.lessons || [];
+  if (lessons.length) {
+    const list = document.getElementById('lessons-list');
+    list.innerHTML = lessons.map((l, i) => `
+      <details class="lesson" ${i === 0 ? 'open' : ''}>
+        <summary>${escHtml(l.title || `Lesson ${i + 1}`)}</summary>
+        <div class="lesson-body">${renderLessonBody(l.content || '')}</div>
+      </details>`).join('');
+    document.getElementById('lessons-section').style.display = '';
+  }
+
+  // Checklist
+  const reqs = mission.requirements || [];
+  if (reqs.length) {
+    const list = document.getElementById('checklist-list');
+    list.innerHTML = reqs.map((r, i) => `
+      <div class="checklist-item" id="ci-${i}">
+        <input type="checkbox" id="chk-${i}" onchange="toggleCheck(${i})">
+        <label for="chk-${i}">${escHtml(r)}</label>
+      </div>`).join('');
+    document.getElementById('checklist-section').style.display = '';
+  }
+}
+
+function renderLessonBody(content) {
+  // Basic: wrap code fences, escape rest
+  return content
+    .split(/```([\s\S]*?)```/)
+    .map((part, i) => i % 2 === 1
+      ? `<pre>${escHtml(part.trim())}</pre>`
+      : escHtml(part))
+    .join('');
+}
+
+function toggleCheck(i) {
+  const item = document.getElementById(`ci-${i}`);
+  item.classList.toggle('done', document.getElementById(`chk-${i}`).checked);
+}
+
+// ─── Monaco Editor ────────────────────────────────────────────────────────────
+function initMonaco() {
+  require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+  require(['vs/editor/editor.main'], () => {
+    const lang = mission.language || 'html';
+
+    // Restore draft from localStorage first, then mission starterCode
+    const draftKey = `codequest_draft_${mission.id || 'default'}`;
+    const draft    = localStorage.getItem(draftKey);
+    const initial  = draft || mission.starterCode || defaultStarter(lang);
+
+    editor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value:            initial,
+      language:         lang,
+      theme:            'vs-dark',
+      fontSize:         14,
+      fontFamily:       "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+      minimap:          { enabled: false },
+      scrollBeyondLastLine: false,
+      wordWrap:         'on',
+      automaticLayout:  true,
+      tabSize:          2,
+    });
+
+    lastSavedHash = hashCode(initial);
+    updatePreview(initial);
+
+    // Live preview on every keystroke
+    editor.onDidChangeModelContent(() => {
+      const code = editor.getValue();
+      updatePreview(code);
+    });
+
+    // Autosave to localStorage every 30 s
+    setInterval(() => autosave(draftKey), 30_000);
+
+    // Save on page hide (tab close / navigate away)
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') autosave(draftKey);
+    });
+
+    if (draft) {
+      document.getElementById('autosave-indicator').textContent = '📂 Draft restored';
+      setTimeout(() => { document.getElementById('autosave-indicator').textContent = ''; }, 3000);
+    }
+  });
+}
+
+function autosave(key) {
+  if (!editor) return;
+  const code = editor.getValue();
+  const h    = hashCode(code);
+  if (h === lastSavedHash) return;
+  localStorage.setItem(key, code);
+  lastSavedHash = h;
+  const el = document.getElementById('autosave-indicator');
+  el.textContent = `💾 Saved ${new Date().toLocaleTimeString()}`;
+  setTimeout(() => { if (el.textContent.startsWith('💾')) el.textContent = ''; }, 3000);
+}
+
+function defaultStarter(lang) {
+  if (lang === 'html') return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Page</title>
+  <style>
+    body { font-family: sans-serif; padding: 24px; }
+  </style>
+</head>
+<body>
+  <!-- Write your code here -->
+  <h1>Hello, World!</h1>
+</body>
+</html>`;
+  if (lang === 'css') return `/* Write your CSS here */\nbody {\n  font-family: sans-serif;\n}\n`;
+  if (lang === 'javascript' || lang === 'js') return `// Write your JavaScript here\nconsole.log('Hello, World!');\n`;
+  return '<!-- Write your code here -->\n';
+}
+
+// ─── Live preview ─────────────────────────────────────────────────────────────
+function updatePreview(code) {
+  const frame = document.getElementById('preview-frame');
+  const lang  = mission.language || 'html';
+  let html    = code;
+  if (lang === 'css')        html = `<style>${code}</style><p>CSS preview</p>`;
+  if (lang === 'javascript') html = `<script>${code}<\/script>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const old  = frame.src;
+  frame.src  = URL.createObjectURL(blob);
+  if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+}
+
+// ─── Auth UI ──────────────────────────────────────────────────────────────────
+function updateAuthUI() {
+  const btn    = document.getElementById('auth-btn');
+  const badge  = document.getElementById('user-badge');
+  const user   = localStorage.getItem('codequest_gh_user');
+  if (ghToken) {
+    btn.textContent  = '🔓 Logged in' + (user ? ` as @${user}` : '');
+    btn.className    = 'btn btn-secondary';
+    if (user) badge.textContent = `@${user}`;
+  } else {
+    btn.innerHTML    = `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> Login with GitHub`;
+    btn.className    = 'btn btn-github';
+    badge.textContent = '';
+  }
+}
+
+function handleAuth() {
+  if (ghToken) {
+    if (confirm('Log out of GitHub?')) {
+      ghToken = null;
+      localStorage.removeItem('codequest_gh_token');
+      localStorage.removeItem('codequest_gh_user');
+      updateAuthUI();
+    }
+    return;
+  }
+  const clientId = mission.githubClientId;
+  if (clientId) {
+    startOAuthRedirect(clientId);
+  } else {
+    openPATModal();
+  }
+}
+
+// ─── OAuth — Web Application Flow (redirect → central callback) ───────────────
+//
+// Flow:
+//   1. Student clicks Login → redirected to GitHub OAuth with redirect_uri
+//      pointing at the central codequest-oauth.netlify.app/callback function.
+//   2. The callback function exchanges the code for a token server-side and
+//      redirects the student back here with #token=…&nonce=… in the hash.
+//   3. handleOAuthCallback() reads the hash, verifies the nonce, and stores
+//      the token in localStorage.  The hash is immediately removed from the URL.
+
+const OAUTH_CALLBACK_URL =
+  mission.oauthCallbackUrl || 'https://codequest-oauth.netlify.app/callback';
+
+function startOAuthRedirect(clientId) {
+  const nonce     = crypto.randomUUID();
+  // returnUrl is where the callback should send the student after the exchange.
+  // Strip any existing query/hash so we land on a clean submit.html URL.
+  const returnUrl = window.location.origin + window.location.pathname;
+
+  // Encode both the CSRF nonce and the return URL into the state parameter.
+  // The callback function decodes this to know where to redirect and what
+  // nonce to echo back for verification.
+  const state = btoa(JSON.stringify({ nonce, returnUrl }));
+
+  localStorage.setItem('codequest_oauth_nonce', nonce);
+
+  const url = 'https://github.com/login/oauth/authorize?' + new URLSearchParams({
+    client_id:    clientId,
+    scope:        'repo',
+    state:        state,
+    redirect_uri: OAUTH_CALLBACK_URL,
+  });
+  window.location.href = url;
+}
+
+function handleOAuthCallback() {
+  if (!window.location.hash || window.location.hash === '#') return;
+
+  const hash  = new URLSearchParams(window.location.hash.slice(1));
+  const token = hash.get('token');
+  const nonce = hash.get('nonce');
+  const err   = hash.get('oauth_error');
+
+  // Nothing OAuth-related in the hash — leave early without touching the URL.
+  if (!token && !err) return;
+
+  // Scrub the hash immediately so the token doesn't linger in the browser bar
+  // or history, and isn't visible if the student shares their screen.
+  window.history.replaceState({}, '', window.location.pathname + window.location.search);
+
+  if (err) {
+    showStatus('❌ GitHub login failed: ' + err, true);
+    return;
+  }
+
+  // Verify the nonce to guard against token-injection attacks (a malicious page
+  // redirecting here with a token it controls).
+  const savedNonce = localStorage.getItem('codequest_oauth_nonce');
+  if (nonce && savedNonce && nonce !== savedNonce) {
+    showStatus('⚠️ Security check failed — please try logging in again.', true);
+    localStorage.removeItem('codequest_oauth_nonce');
+    return;
+  }
+  localStorage.removeItem('codequest_oauth_nonce');
+
+  storeToken(token);
+}
+
+async function storeToken(token) {
+  ghToken = token;
+  localStorage.setItem('codequest_gh_token', token);
+  // Fetch the authenticated user to display their name
+  try {
+    const res  = await fetch('https://api.github.com/user', { headers: { Authorization: `token ${token}` } });
+    const user = await res.json();
+    if (user.login) {
+      localStorage.setItem('codequest_gh_user', user.login);
+      // Auto-fill repoOwner if not set
+      if (!repoOwner) repoOwner = user.login;
+    }
+  } catch { /* ignore */ }
+  updateAuthUI();
+  showStatus('✅ Logged in to GitHub!');
+}
+
+// ─── PAT modal ────────────────────────────────────────────────────────────────
+function openPATModal() {
+  document.getElementById('pat-input').value = '';
+  document.getElementById('pat-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('pat-input').focus(), 50);
+}
+function closePATModal()   { document.getElementById('pat-modal').style.display = 'none'; }
+function cancelDeviceFlow() {
+  clearInterval(devicePollTimer);
+  document.getElementById('device-modal').style.display = 'none';
+}
+function copyDeviceCode() {
+  navigator.clipboard.writeText(document.getElementById('device-code-display').textContent).catch(() => {});
+}
+
+async function savePAT() {
+  const token = document.getElementById('pat-input').value.trim();
+  if (!token) return;
+  closePATModal();
+  await storeToken(token);
+}
+
+// ─── Submit ───────────────────────────────────────────────────────────────────
+async function submitWork() {
+  if (!editor) { showStatus('⏳ Editor still loading…', true); return; }
+  if (!ghToken) { showStatus('⚠️ Login with GitHub first.', true); handleAuth(); return; }
+  if (!repoOwner || !repoName) { showStatus('⚠️ Cannot determine repo. Set repoOwner/repoName in mission.json.', true); return; }
+
+  const btn  = document.getElementById('submit-btn');
+  btn.disabled = true;
+  showStatus('📤 Submitting…');
+
+  const code     = editor.getValue();
+  const path     = 'submissions/index.html';
+  const apiBase  = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${path}`;
+  const headers  = { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json' };
+
+  try {
+    // Get existing file SHA (if file already exists)
+    let sha;
+    const getRes = await fetch(apiBase, { headers });
+    if (getRes.ok) sha = (await getRes.json()).sha;
+
+    // Encode content as base64 (handle Unicode)
+    const encoded = btoa(unescape(encodeURIComponent(code)));
+    const body    = { message: '🚀 Submit mission work', content: encoded };
+    if (sha) body.sha = sha;
+
+    const putRes = await fetch(apiBase, { method: 'PUT', headers, body: JSON.stringify(body) });
+    if (!putRes.ok) {
+      const err = await putRes.json();
+      throw new Error(err.message || putRes.status);
+    }
+
+    showStatus('✅ Submitted! Waiting for AI feedback…');
+    btn.textContent = '✅ Submitted';
+    startFeedbackPolling();
+  } catch (err) {
+    showStatus('❌ Submit failed: ' + err.message, true);
+    btn.disabled = false;
+  }
+}
+
+// ─── AI Feedback polling ──────────────────────────────────────────────────────
+function startFeedbackPolling() {
+  const section = document.getElementById('feedback-section');
+  const content = document.getElementById('feedback-content');
+  section.style.display = '';
+  content.innerHTML = '<span class="feedback-spinner"></span> Waiting for AI checker to run…';
+
+  let attempts = 0;
+  const MAX    = 120;  // give up after ~6 minutes
+
+  feedbackTimer = setInterval(async () => {
+    attempts++;
+    if (attempts > MAX) {
+      clearInterval(feedbackTimer);
+      content.innerHTML = '⏰ Timed out waiting for feedback. Check the Actions tab on GitHub.';
+      return;
+    }
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${repoOwner}/${repoName}/contents/README.md`,
+        { headers: { Authorization: `token ${ghToken}`, 'Cache-Control': 'no-cache' } }
+      );
+      if (!res.ok) return;
+      const data   = await res.json();
+      const raw    = atob(data.content.replace(/\s/g, ''));
+      const text   = decodeURIComponent(escape(raw));
+      const match  = text.match(/##\s+AI Feedback\s*\n([\s\S]*?)(?:\n(?=##\s)|\s*$)/);
+      if (!match) return;
+      const body = match[1].trim();
+      if (!body || body.startsWith('> ⏳') || body.includes('No feedback yet')) return;
+      clearInterval(feedbackTimer);
+      renderFeedback(body);
+    } catch { /* network hiccup — keep polling */ }
+  }, 3000);
+}
+
+function renderFeedback(md) {
+  // Minimal markdown: bold, checkboxes, pass/fail colouring
+  const html = md
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- ✅ (.*)/gm, '<div class="pass">✅ $1</div>')
+    .replace(/^- ❌ (.*)/gm, '<div class="fail">❌ $1</div>')
+    .replace(/^- (.*)/gm,    '<div>• $1</div>')
+    .replace(/^### (.*)/gm,  '<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\n{2,}/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+  document.getElementById('feedback-content').innerHTML = html;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function showStatus(msg, isError = false) {
+  const el = document.getElementById('submit-status');
+  el.textContent   = msg;
+  el.style.color   = isError ? 'var(--orange)' : 'var(--muted)';
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function hashCode(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = Math.imul(31, h) + s.charCodeAt(i) | 0;
+  return h;
+}
+</script>
+</body>
+</html>
