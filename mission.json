@@ -27,6 +27,7 @@
   "repoOwner": "{{repo_owner}}",
   "repoName":  "{{repo_name}}",
 
-  "githubClientId":    "{{github_client_id}}",
+  "githubClientId":    "Ov23liQDq3Zot4YJncUU
+",
   "oauthCallbackUrl":  "https://codequest-oauth.netlify.app/callback"
 }
