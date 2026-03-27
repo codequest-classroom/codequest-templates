@@ -290,14 +290,20 @@ let lastSavedHash   = '';
 
 // ─── Mission config ───────────────────────────────────────────────────────────
 async function loadMission() {
-  try {
-    const res = await fetch('../mission.json');
-    if (!res.ok) throw new Error(res.status);
-    return await res.json();
-  } catch {
-    console.warn('Could not load mission.json — using defaults.');
-    return {};
+  const candidates = ['../mission.json', './mission.json', '../../mission.json'];
+  for (const path of candidates) {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.githubClientId) {
+        console.log(`Loaded mission.json from ${path}`);
+        return data;
+      }
+    } catch { /* try next */ }
   }
+  console.warn('Could not load mission.json with githubClientId from any path — using defaults.');
+  return {};
 }
 
 // ─── Repo detection ───────────────────────────────────────────────────────────
