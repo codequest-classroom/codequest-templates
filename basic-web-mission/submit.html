@@ -135,30 +135,6 @@
     .feedback-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── PAT / OAuth modal ── */
-    .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.65);
-      display: flex; align-items: center; justify-content: center; z-index: 200;
-    }
-    .modal-box {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-      padding: 28px; width: 440px; max-width: 95vw;
-    }
-    .modal-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-    .modal-box p { color: var(--muted); font-size: 13px; line-height: 1.6; margin-bottom: 16px; }
-    .modal-box input {
-      width: 100%; padding: 9px 12px; background: var(--bg); border: 1px solid var(--border);
-      border-radius: 6px; color: var(--text); font-size: 13px; margin-bottom: 12px; outline: none;
-    }
-    .modal-box input:focus { border-color: var(--accent); }
-    .modal-box .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-    .modal-box .device-code {
-      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-      padding: 16px; text-align: center; margin: 16px 0;
-    }
-    .modal-box .device-code .code { font-family: monospace; font-size: 22px; font-weight: 700; letter-spacing: 4px; color: var(--accent); }
-    .modal-box .device-code small { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
-    .modal-box a { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -228,39 +204,6 @@
   <div id="feedback-content"></div>
 </div>
 
-<!-- PAT fallback modal -->
-<div id="pat-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePATModal()">
-  <div class="modal-box">
-    <h3>🔑 GitHub Personal Access Token</h3>
-    <p>
-      No OAuth app is configured. Create a <strong>classic PAT</strong> with
-      <code>repo</code> scope at
-      <a href="https://github.com/settings/tokens/new?scopes=repo&description=CodeQuest" target="_blank" rel="noopener">github.com/settings/tokens</a>
-      and paste it below.
-    </p>
-    <input id="pat-input" type="password" placeholder="ghp_…" autocomplete="off">
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closePATModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="savePAT()">Save Token</button>
-    </div>
-  </div>
-</div>
-
-<!-- Device-flow OAuth modal -->
-<div id="device-modal" class="modal-overlay" style="display:none">
-  <div class="modal-box">
-    <h3>🔐 Authorize with GitHub</h3>
-    <p>Open <a id="device-url" href="#" target="_blank" rel="noopener">github.com/login/device</a> and enter this code:</p>
-    <div class="device-code">
-      <div class="code" id="device-code-display">—</div>
-      <small>Waiting for you to authorize…<span class="feedback-spinner"></span></small>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="cancelDeviceFlow()">Cancel</button>
-      <button class="btn btn-primary" onclick="copyDeviceCode()">Copy Code</button>
-    </div>
-  </div>
-</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 <script>
@@ -272,7 +215,6 @@ let mission       = {};
 let ghToken       = null;
 let repoOwner     = null;
 let repoName      = null;
-let devicePollTimer = null;
 let feedbackTimer   = null;
 let lastSavedHash   = '';
 
@@ -501,7 +443,7 @@ function handleAuth() {
   if (clientId) {
     startOAuthRedirect(clientId);
   } else {
-    openPATModal();
+    showStatus('⚠️ OAuth not configured — contact your teacher.', true);
   }
 }
 
@@ -590,32 +532,16 @@ async function storeToken(token) {
   showStatus('✅ Logged in to GitHub!');
 }
 
-// ─── PAT modal ────────────────────────────────────────────────────────────────
-function openPATModal() {
-  document.getElementById('pat-input').value = '';
-  document.getElementById('pat-modal').style.display = 'flex';
-  setTimeout(() => document.getElementById('pat-input').focus(), 50);
-}
-function closePATModal()   { document.getElementById('pat-modal').style.display = 'none'; }
-function cancelDeviceFlow() {
-  clearInterval(devicePollTimer);
-  document.getElementById('device-modal').style.display = 'none';
-}
-function copyDeviceCode() {
-  navigator.clipboard.writeText(document.getElementById('device-code-display').textContent).catch(() => {});
-}
-
-async function savePAT() {
-  const token = document.getElementById('pat-input').value.trim();
-  if (!token) return;
-  closePATModal();
-  await storeToken(token);
-}
-
 // ─── Submit ───────────────────────────────────────────────────────────────────
 async function submitWork() {
   if (!editor) { showStatus('⏳ Editor still loading…', true); return; }
-  if (!ghToken) { showStatus('⚠️ Login with GitHub first.', true); handleAuth(); return; }
+  if (!ghToken) {
+    showStatus('⚠️ Login with GitHub first.', true);
+    const clientId = mission.githubClientId;
+    if (clientId) startOAuthRedirect(clientId);
+    else showStatus('⚠️ OAuth not configured — contact your teacher.', true);
+    return;
+  }
   if (!repoOwner || !repoName) { showStatus('⚠️ Cannot determine repo. Set repoOwner/repoName in mission.json.', true); return; }
 
   const btn  = document.getElementById('submit-btn');
